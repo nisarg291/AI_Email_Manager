@@ -821,6 +821,53 @@ def delete_emails_query(user, query: str, max_results: int = 10000) -> int:
     return total
 
 
+def send_new_email(user, to_email: str, subject: str, body: str):
+    """Send a brand-new email (no thread) via Gmail API on behalf of `user`."""
+    import base64
+    from email.mime.text import MIMEText
+    svc = gmail_service(user)
+    mime = MIMEText(body, "plain", "utf-8")
+    mime["to"] = to_email
+    mime["subject"] = subject
+    raw = base64.urlsafe_b64encode(mime.as_bytes()).decode()
+    svc.users().messages().send(userId="me", body={"raw": raw}).execute()
+
+
+def generate_ai_compose(to_email: str, intent: str,
+                        sender_name: str, sender_email: str) -> dict:
+    """Use OpenAI to draft a brand-new formal email. Returns {subject, body}."""
+    if _openai is None:
+        raise RuntimeError("OPENAI_API_KEY is not configured.")
+    prompt = (
+        f"You are drafting a new professional email on behalf of {sender_name} ({sender_email}).\n\n"
+        f"RECIPIENT: {to_email}\n"
+        f"WHAT THE SENDER WANTS TO SAY:\n{intent}\n\n"
+        "INSTRUCTIONS:\n"
+        "1. Write a complete, formal, well-structured email.\n"
+        "2. Generate an appropriate subject line.\n"
+        "3. Include a proper greeting, body paragraphs, and sign-off with the sender's name.\n"
+        "4. Return your answer in exactly this format — two sections, nothing else:\n"
+        "SUBJECT: <the subject line>\n"
+        "BODY:\n<the full email body>\n"
+    )
+    resp = _openai.chat.completions.create(
+        model=settings.OPENAI_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=800,
+        temperature=0.7,
+    )
+    text = resp.choices[0].message.content.strip()
+    subject = ""
+    body = text
+    if text.startswith("SUBJECT:"):
+        lines = text.split("\n", 1)
+        subject = lines[0].replace("SUBJECT:", "").strip()
+        body = lines[1].strip() if len(lines) > 1 else ""
+        if body.startswith("BODY:"):
+            body = body[5:].strip()
+    return {"subject": subject, "body": body}
+
+
 def send_email_reply(user, to_email: str, subject: str, body: str, thread_id: str = None):
     """Send an email via Gmail API on behalf of `user`."""
     import base64

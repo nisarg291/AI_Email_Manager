@@ -1201,6 +1201,49 @@ def send_reply_view(request, msg_id):
 
 
 @login_required
+def compose_ai_view(request):
+    """AJAX POST: generate a new email draft with AI."""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    to_email = request.POST.get("to_email", "").strip()
+    intent   = request.POST.get("intent", "").strip()
+    if not to_email:
+        return JsonResponse({"error": "Recipient email is required."}, status=400)
+    if not intent:
+        return JsonResponse({"error": "Please describe what you want to say."}, status=400)
+    try:
+        profile = UserProfile.objects.filter(user=request.user).first()
+        sender_name = (profile.full_name if profile and profile.full_name
+                       else request.user.get_full_name() or request.user.email.split("@")[0])
+        result = services.generate_ai_compose(
+            to_email    = to_email,
+            intent      = intent,
+            sender_name = sender_name,
+            sender_email= request.user.email,
+        )
+        return JsonResponse(result)
+    except Exception as exc:
+        return JsonResponse({"error": str(exc)}, status=500)
+
+
+@login_required
+def send_compose_view(request):
+    """AJAX POST: send a brand-new email composed with AI."""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    to_email = request.POST.get("to_email", "").strip()
+    subject  = request.POST.get("subject", "").strip()
+    body     = request.POST.get("body", "").strip()
+    if not to_email or not body:
+        return JsonResponse({"error": "Recipient and body are required."}, status=400)
+    try:
+        services.send_new_email(request.user, to_email, subject, body)
+        return JsonResponse({"success": True, "message": "Email sent successfully!"})
+    except Exception as exc:
+        return JsonResponse({"error": str(exc)}, status=500)
+
+
+@login_required
 def manage_labels_view(request):
     """
     List all Gmail labels with show/hide toggles.

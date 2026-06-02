@@ -9,6 +9,42 @@
 .lbl-chip:hover{border-color:#6366f1;background:#eef2ff;color:#4338ca}
 .lbl-chip .cnt{background:#eef2ff;color:#4338ca;border-radius:10px;padding:0 7px;font-size:11px;font-weight:700;min-width:22px;text-align:center}
 .lbl-chip.custom .cnt{background:#f5f3ff;color:#7c3aed}
+
+/* ── Compose card ── */
+.compose-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;margin-bottom:24px;box-shadow:0 1px 4px rgba(0,0,0,.05);overflow:hidden}
+.compose-header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;cursor:pointer;user-select:none}
+.compose-header:hover{background:#fafbfc}
+.compose-header h6{margin:0;font-weight:700;display:flex;align-items:center;gap:8px}
+.compose-toggle-icon{color:#94a3b8;transition:transform .2s}
+.compose-body{display:none;padding:0 20px 20px;border-top:1px solid #f1f5f9}
+.compose-body.open{display:block}
+.compose-field{margin-top:14px}
+.compose-label{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-bottom:5px;display:block}
+.compose-input{width:100%;border:1.5px solid #e2e8f0;border-radius:9px;padding:9px 13px;font-size:.875rem;font-family:inherit;color:#0f172a;background:#f8fafc;transition:border .15s}
+.compose-input:focus{outline:none;border-color:#6366f1;background:#fff;box-shadow:0 0 0 3px rgba(99,102,241,.08)}
+.compose-textarea{resize:vertical;min-height:88px;line-height:1.6}
+.compose-actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.compose-draft-section{display:none;margin-top:18px;border-top:1px dashed #e2e8f0;padding-top:16px}
+.compose-draft-section.show{display:block}
+.compose-draft-label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.compose-subject-input{width:100%;border:1.5px solid #e2e8f0;border-radius:9px;padding:8px 13px;font-size:.875rem;font-family:inherit;margin-bottom:10px;background:#fff;transition:border .15s}
+.compose-subject-input:focus{outline:none;border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.08)}
+.compose-draft-area{width:100%;border:1.5px solid #e2e8f0;border-radius:9px;padding:12px 14px;font-size:.875rem;font-family:inherit;min-height:200px;resize:vertical;background:#fff;line-height:1.65;transition:border .15s}
+.compose-draft-area:focus{outline:none;border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.08)}
+.compose-send-row{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
+.btn-compose-gen{background:linear-gradient(135deg,#6366f1,#7c3aed);color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:.82rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.btn-compose-gen:hover{opacity:.9;transform:translateY(-1px)}
+.btn-compose-gen:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.btn-compose-send{background:#10b981;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:.82rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.btn-compose-send:hover{background:#059669;transform:translateY(-1px)}
+.btn-compose-send:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.btn-compose-regen{background:transparent;color:#6366f1;border:1.5px solid #c7d2fe;border-radius:8px;padding:7px 14px;font-size:.82rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.btn-compose-regen:hover{background:#eef2ff}
+.compose-status{font-size:.82rem;font-weight:500}
+.compose-status.ok{color:#059669}
+.compose-status.err{color:#dc2626}
+.spinner-sm{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:cspin .6s linear infinite}
+@keyframes cspin{to{transform:rotate(360deg)}}
 </style>
 
 <div class="dash-header">
@@ -76,6 +112,56 @@
 </div>
 {% endif %}
 
+<!-- ── Compose New Email with AI ── -->
+<div class="compose-card mb-4">
+  <div class="compose-header" onclick="toggleCompose()">
+    <h6><i class="bi bi-stars text-primary"></i> Compose New Email with AI</h6>
+    <i class="bi bi-chevron-down compose-toggle-icon" id="compose-chevron"></i>
+  </div>
+  <div class="compose-body" id="compose-body">
+
+    <div class="compose-field">
+      <label class="compose-label">To (recipient email)</label>
+      <input id="compose-to" type="email" class="compose-input" placeholder="recipient@example.com">
+    </div>
+
+    <div class="compose-field">
+      <label class="compose-label">What do you want to say?</label>
+      <textarea id="compose-intent" class="compose-input compose-textarea"
+                placeholder="e.g. Ask John about the project timeline and whether the deadline can be extended to next Friday."></textarea>
+    </div>
+
+    <div class="compose-actions">
+      <button class="btn-compose-gen" id="btn-compose-gen" onclick="generateCompose()">
+        <i class="bi bi-stars"></i> Draft with AI
+      </button>
+      <span id="compose-status" class="compose-status"></span>
+    </div>
+
+    <!-- Draft review section — shown after AI generates -->
+    <div class="compose-draft-section" id="compose-draft-section">
+      <div class="compose-draft-label"><i class="bi bi-pencil-square" style="color:#6366f1"></i> AI Draft — review and edit before sending</div>
+
+      <label class="compose-label">Subject</label>
+      <input id="compose-subject" type="text" class="compose-subject-input" placeholder="Subject line">
+
+      <label class="compose-label">Email body</label>
+      <textarea id="compose-body-text" class="compose-draft-area"></textarea>
+
+      <div class="compose-send-row">
+        <button class="btn-compose-send" id="btn-compose-send" onclick="sendCompose()">
+          <i class="bi bi-send-fill"></i> Send Email
+        </button>
+        <button class="btn-compose-regen" onclick="generateCompose()">
+          <i class="bi bi-arrow-repeat"></i> Regenerate
+        </button>
+        <span id="compose-send-status" class="compose-status"></span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 <div class="card-modern">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h6 class="mb-0 fw-bold">Recent activity</h6>
@@ -103,5 +189,91 @@
     {% endfor %}
   </ul>
 </div>
+
+<script>
+(function(){
+  const COMPOSE_URL = "{% url 'compose_ai' %}";
+  const SEND_URL    = "{% url 'send_compose' %}";
+  const CSRF        = "{{ csrf_token }}";
+
+  window.toggleCompose = function(){
+    const body     = document.getElementById('compose-body');
+    const chevron  = document.getElementById('compose-chevron');
+    const isOpen   = body.classList.contains('open');
+    body.classList.toggle('open', !isOpen);
+    chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+  };
+
+  window.generateCompose = async function(){
+    const toEmail = document.getElementById('compose-to').value.trim();
+    const intent  = document.getElementById('compose-intent').value.trim();
+    const status  = document.getElementById('compose-status');
+    if(!toEmail){ status.textContent = '⚠ Please enter a recipient email.'; status.className='compose-status err'; return; }
+    if(!intent){  status.textContent = '⚠ Please describe what you want to say.'; status.className='compose-status err'; return; }
+    const btn = document.getElementById('btn-compose-gen');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-sm"></span> Drafting…';
+    status.textContent = '';
+    try {
+      const fd = new FormData();
+      fd.append('to_email', toEmail);
+      fd.append('intent', intent);
+      fd.append('csrfmiddlewaretoken', CSRF);
+      const r = await fetch(COMPOSE_URL, {method:'POST', body:fd});
+      const d = await r.json();
+      if(d.error){ throw new Error(d.error); }
+      document.getElementById('compose-subject').value   = d.subject || '';
+      document.getElementById('compose-body-text').value = d.body   || '';
+      document.getElementById('compose-draft-section').classList.add('show');
+      document.getElementById('compose-send-status').textContent = '';
+      document.getElementById('btn-compose-send').disabled = false;
+      document.getElementById('btn-compose-send').innerHTML = '<i class="bi bi-send-fill"></i> Send Email';
+    } catch(e){
+      status.textContent = '⚠ ' + e.message;
+      status.className = 'compose-status err';
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-stars"></i> Draft with AI';
+    }
+  };
+
+  window.sendCompose = async function(){
+    const toEmail = document.getElementById('compose-to').value.trim();
+    const subject = document.getElementById('compose-subject').value.trim();
+    const body    = document.getElementById('compose-body-text').value.trim();
+    const status  = document.getElementById('compose-send-status');
+    if(!body){ status.textContent = '⚠ Email body is empty.'; status.className='compose-status err'; return; }
+    const btn = document.getElementById('btn-compose-send');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-sm"></span> Sending…';
+    status.textContent = '';
+    try {
+      const fd = new FormData();
+      fd.append('to_email', toEmail);
+      fd.append('subject', subject);
+      fd.append('body', body);
+      fd.append('csrfmiddlewaretoken', CSRF);
+      const r = await fetch(SEND_URL, {method:'POST', body:fd});
+      const d = await r.json();
+      if(d.error){ throw new Error(d.error); }
+      status.textContent = '✓ ' + d.message;
+      status.className = 'compose-status ok';
+      btn.innerHTML = '<i class="bi bi-check2"></i> Sent!';
+      setTimeout(() => {
+        document.getElementById('compose-to').value = '';
+        document.getElementById('compose-intent').value = '';
+        document.getElementById('compose-draft-section').classList.remove('show');
+        status.textContent = '';
+        btn.innerHTML = '<i class="bi bi-send-fill"></i> Send Email';
+      }, 3000);
+    } catch(e){
+      status.textContent = '⚠ ' + e.message;
+      status.className = 'compose-status err';
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-send-fill"></i> Send Email';
+    }
+  };
+})();
+</script>
 
 {% endblock %}

@@ -42,4 +42,6 @@ urlpatterns = [
     path("delete-emails/",    views.delete_emails_view, name="delete_emails"),
     path("email/<str:msg_id>/ai-reply/",   views.ai_reply_view,   name="ai_reply"),
     path("email/<str:msg_id>/send-reply/", views.send_reply_view, name="send_reply"),
+    path("compose/ai/",   views.compose_ai_view,   name="compose_ai"),
+    path("compose/send/", views.send_compose_view, name="send_compose"),
 ]
