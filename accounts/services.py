@@ -1094,23 +1094,23 @@ Respond ONLY with valid JSON:
 
             # Main category label
             if cat and cat.slug != "other":
-                label_ids.append(ensure_label(svc, f"AI/{cat.short_label}"))
+                label_ids.append(ensure_label(svc, cat.short_label))
             else:
-                label_ids.append(ensure_label(svc, "AI/Other"))
+                label_ids.append(ensure_label(svc, "Other"))
 
             # MyOrg label
             if org_domain and sender_domain == org_domain and myorg_cat:
-                label_ids.append(ensure_label(svc, f"AI/{myorg_cat.short_label}"))
+                label_ids.append(ensure_label(svc, myorg_cat.short_label))
 
             # Urgent label
             if is_urgent and urgent_cat:
-                label_ids.append(ensure_label(svc, f"AI/{urgent_cat.short_label}"))
+                label_ids.append(ensure_label(svc, urgent_cat.short_label))
 
             # Tier labels
             if user_tier == "critical":
-                label_ids.append(ensure_label(svc, "AI/⭐ Critical"))
+                label_ids.append(ensure_label(svc, "⭐ Critical"))
             elif user_tier == "important":
-                label_ids.append(ensure_label(svc, "AI/⭐ Important"))
+                label_ids.append(ensure_label(svc, "⭐ Important"))
 
             apply_labels(
                 svc,
@@ -1458,19 +1458,19 @@ Respond ONLY with valid JSON:
             label_ids = []
             try:
                 if custom_cat_obj:
-                    label_ids.append(ensure_label(svc, f"AI/Custom/{custom_cat_obj.name}"))
+                    label_ids.append(ensure_label(svc, f"Custom/{custom_cat_obj.name}"))
                 elif cat and cat.slug != "other":
-                    label_ids.append(ensure_label(svc, f"AI/{cat.short_label}"))
+                    label_ids.append(ensure_label(svc, cat.short_label))
                 else:
-                    label_ids.append(ensure_label(svc, "AI/Other"))
+                    label_ids.append(ensure_label(svc, "Other"))
                 if org_domain and sender_domain == org_domain and myorg_cat:
-                    label_ids.append(ensure_label(svc, f"AI/{myorg_cat.short_label}"))
+                    label_ids.append(ensure_label(svc, myorg_cat.short_label))
                 if is_urgent and urgent_cat:
-                    label_ids.append(ensure_label(svc, f"AI/{urgent_cat.short_label}"))
+                    label_ids.append(ensure_label(svc, urgent_cat.short_label))
                 if user_tier == "critical":
-                    label_ids.append(ensure_label(svc, "AI/⭐ Critical"))
+                    label_ids.append(ensure_label(svc, "⭐ Critical"))
                 elif user_tier == "important":
-                    label_ids.append(ensure_label(svc, "AI/⭐ Important"))
+                    label_ids.append(ensure_label(svc, "⭐ Important"))
                 apply_labels(svc, m["id"], label_ids)
             except Exception:
                 pass
@@ -1524,10 +1524,10 @@ def ensure_user_labels(user) -> None:
         svc = gmail_service(user)
         active_cats = _UCP.objects.filter(user=user).select_related("category")
         for pref in active_cats:
-            ensure_label(svc, f"AI/{pref.category.short_label}")
+            ensure_label(svc, pref.category.short_label)
         for cc in user.custom_categories.all():
-            ensure_label(svc, f"AI/Custom/{cc.name}")
-        for name in ("AI/Other", "AI/⭐ Critical", "AI/⭐ Important"):
+            ensure_label(svc, f"Custom/{cc.name}")
+        for name in ("Other", "⭐ Critical", "⭐ Important"):
             ensure_label(svc, name)
     except Exception as exc:
         print(f"ensure_user_labels: {exc}")

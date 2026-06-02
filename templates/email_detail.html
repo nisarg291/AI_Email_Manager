@@ -76,7 +76,7 @@
     <div class="detail-ai-box">
       <div class="detail-ai-item">
         <strong>AI Category</strong>
-        <span>{% if ce.category %}{{ ce.category.group }} / {{ ce.category.name }}{% else %}—{% endif %}</span>
+        <span>{% if ce.category %}{{ ce.category.name }}{% elif ce.custom_category %}{{ ce.custom_category.name }}{% else %}—{% endif %}</span>
       </div>
       <div class="detail-ai-item">
         <strong>Importance</strong>

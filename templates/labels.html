@@ -32,7 +32,7 @@
       <a class="lbl-row" href="{% url 'manage_emails' %}?category={{ l.category__id }}">
         <div class="lbl-icon" style="background:#eef2ff">🏷</div>
         <div style="flex:1;min-width:0">
-          <div class="lbl-name">{{ l.category__short_label }}</div>
+          <div class="lbl-name">{{ l.category__name }}</div>
           <div class="lbl-group">{{ l.category__group }}</div>
         </div>
         <span class="lbl-count">{{ l.count }}</span>
