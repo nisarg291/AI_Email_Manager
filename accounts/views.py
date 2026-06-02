@@ -652,29 +652,27 @@ def onboarding_step3(request):
     profile = _ensure_profile(request)
 
     if request.method == "POST":
-        # Save tier for whatever was shown
+        # Save tier ONLY for the 20 categories that were shown — these become the user's active set
         for cat_id in request.POST.getlist("shown_cat_ids"):
-            t = request.POST.get(f"tier_{cat_id}")
-            if t in {"critical", "important", "normal", "low", "ignore"}:
-                UserCategoryPreference.objects.update_or_create(
-                    user=request.user,
-                    category_id=int(cat_id),
-                    defaults={"tier": t},
-                )
-        # Auto-assign defaults to the rest (so AI classification uses them later)
-        shown = set(map(int, request.POST.getlist("shown_cat_ids")))
-        for cat in EmailCategory.objects.exclude(id__in=shown):
+            try:
+                cat_id_int = int(cat_id)
+            except ValueError:
+                continue
+            t = request.POST.get(f"tier_{cat_id}", "normal")
+            if t not in {"critical", "important", "normal", "low", "ignore"}:
+                t = "normal"
             UserCategoryPreference.objects.update_or_create(
-                user=request.user, category=cat,
-                defaults={"tier": cat.default_tier},
+                user=request.user,
+                category_id=cat_id_int,
+                defaults={"tier": t},
             )
 
         profile.onboarded = True
         profile.save(update_fields=["onboarded"])
-        # Pre-create Gmail labels for all categories in the background
+        # Pre-create Gmail labels for the user's active categories in the background
         import threading as _t
         _t.Thread(target=services.ensure_user_labels, args=(request.user,), daemon=True).start()
-        messages.success(request, "All set! Gmail labels created. Run AI classification to get started.")
+        messages.success(request, "All set! Your labels are being created in Gmail.")
         return redirect("dashboard")
 
     # GET: ask AI for relevant categories
@@ -712,10 +710,14 @@ def profile_view(request):
 
 @login_required
 def categories_view(request):
-    """Edit category tier preferences + manage custom labels."""
+    """
+    Show & manage a user's active categories (their personal ~20 set).
+    Actions: save_tiers | remove_cat | add_system_cat | add_custom | delete_custom
+    """
     if request.method == "POST":
         action = request.POST.get("action", "save_tiers")
 
+        # ── Custom label: add ─────────────────────────────────────
         if action == "add_custom":
             name = request.POST.get("name", "").strip()
             desc = request.POST.get("description", "").strip()
@@ -728,7 +730,6 @@ def categories_view(request):
                         defaults={"name": name, "description": desc},
                     )
                     if created:
-                        # Create the Gmail label for it
                         try:
                             svc = services.gmail_service(request.user)
                             services.ensure_label(svc, f"AI/Custom/{name}")
@@ -739,6 +740,7 @@ def categories_view(request):
                         messages.warning(request, "A label with that name already exists.")
             return redirect("categories")
 
+        # ── Custom label: delete ──────────────────────────────────
         if action == "delete_custom":
             cid = request.POST.get("custom_id")
             if cid and cid.isdigit():
@@ -746,27 +748,86 @@ def categories_view(request):
                 messages.success(request, "Custom label deleted.")
             return redirect("categories")
 
-        # default: save tier preferences
-        for cat in EmailCategory.objects.all():
-            t = request.POST.get(f"tier_{cat.id}")
-            if t in {"critical","important","normal","low","ignore"}:
-                UserCategoryPreference.objects.update_or_create(
-                    user=request.user, category=cat, defaults={"tier": t},
-                )
-        messages.success(request, "Category preferences saved.")
+        # ── Remove a system category from user's active set ───────
+        if action == "remove_cat":
+            pref_id = request.POST.get("pref_id")
+            if pref_id and pref_id.isdigit():
+                UserCategoryPreference.objects.filter(
+                    user=request.user, pk=pref_id
+                ).delete()
+                messages.success(request, "Category removed from your active set.")
+            return redirect("categories")
+
+        # ── Add a system category from the pool ───────────────────
+        if action == "add_system_cat":
+            cat_id = request.POST.get("cat_id")
+            if cat_id and cat_id.isdigit():
+                cat = EmailCategory.objects.filter(pk=cat_id).first()
+                if cat:
+                    pref, created = UserCategoryPreference.objects.get_or_create(
+                        user=request.user, category=cat,
+                        defaults={"tier": cat.default_tier},
+                    )
+                    if created:
+                        try:
+                            svc = services.gmail_service(request.user)
+                            services.ensure_label(svc, f"AI/{cat.short_label}")
+                        except Exception:
+                            pass
+                        messages.success(request, f'"{cat.name}" added to your labels.')
+                    else:
+                        messages.info(request, f'"{cat.name}" is already in your labels.')
+            return redirect("categories")
+
+        # ── Save tier preferences ─────────────────────────────────
+        for pref in UserCategoryPreference.objects.filter(user=request.user):
+            t = request.POST.get(f"tier_{pref.category_id}")
+            if t in {"critical", "important", "normal", "low", "ignore"}:
+                pref.tier = t
+                pref.save(update_fields=["tier"])
+        messages.success(request, "Preferences saved.")
         return redirect("categories")
 
-    prefs = {p.category_id: p.tier for p in request.user.category_prefs.all()}
-    cat_groups = {}
-    for c in EmailCategory.objects.all().order_by("group", "name"):
-        cat_groups.setdefault(c.group, []).append(
-            {"obj": c, "tier": prefs.get(c.id, c.default_tier)}
-        )
+    # ── GET ───────────────────────────────────────────────────────
+    active_prefs = (
+        UserCategoryPreference.objects
+        .filter(user=request.user)
+        .select_related("category")
+        .order_by("category__group", "category__name")
+    )
+    # Group by category group for display
+    active_groups = {}
+    active_cat_ids = set()
+    for p in active_prefs:
+        active_groups.setdefault(p.category.group, []).append(p)
+        active_cat_ids.add(p.category_id)
+
+    # Pool: all categories the user hasn't added yet
+    pool_cats = (
+        EmailCategory.objects
+        .exclude(id__in=active_cat_ids)
+        .exclude(slug__in=["urgent", "myorg", "other"])
+        .order_by("group", "name")
+    )
+    pool_groups = {}
+    for c in pool_cats:
+        pool_groups.setdefault(c.group, []).append(c)
+
     custom_cats = request.user.custom_categories.order_by("name")
+    tier_choices = [
+        ("critical",  "Critical"),
+        ("important", "Important"),
+        ("normal",    "Normal"),
+        ("low",       "Low"),
+        ("ignore",    "Ignore"),
+    ]
     return render(request, "categories.html", {
-        "cat_groups": cat_groups,
-        "custom_cats": custom_cats,
-        "total_cats": EmailCategory.objects.count(),
+        "active_groups": active_groups,
+        "pool_groups":   pool_groups,
+        "custom_cats":   custom_cats,
+        "active_count":  len(active_cat_ids),
+        "pool_count":    pool_cats.count(),
+        "tier_choices":  tier_choices,
     })
 
 

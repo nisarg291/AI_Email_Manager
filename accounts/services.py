@@ -1281,19 +1281,29 @@ def _run_job(user_id: int, job_id: int) -> None:  # noqa: C901
         org_domain = (profile.org_domain or "").lower().strip() if profile else ""
         blocked = profile.blocked_set() if profile else set()
 
-        # ---- categories ----
-        system_cats = list(EmailCategory.objects.all())
-        cat_by_slug = {c.slug: c for c in system_cats}
+        # ---- categories: use ONLY the user's active preferences ----
+        from .models import UserCategoryPreference as _UCP
+        active_prefs = list(_UCP.objects.filter(user=user).select_related("category"))
+        active_cats  = [p.category for p in active_prefs]
+        pref_by_cat_id = {p.category_id: p for p in active_prefs}
+
+        # Special system cats loaded separately (not in classification listing)
+        all_by_slug = {c.slug: c for c in EmailCategory.objects.filter(
+            slug__in=["other", "myorg", "urgent"]
+        )}
+        other_cat  = all_by_slug.get("other")
+        myorg_cat  = all_by_slug.get("myorg")
+        urgent_cat = all_by_slug.get("urgent")
+
+        # Build slug→cat map only for user's active categories
+        cat_by_slug = {c.slug: c for c in active_cats}
+
         custom_cats = list(user.custom_categories.all())
         custom_by_slug = {c.slug: c for c in custom_cats}
 
-        other_cat  = cat_by_slug.get("other")
-        myorg_cat  = cat_by_slug.get("myorg")
-        urgent_cat = cat_by_slug.get("urgent")
-
         sys_listing = "\n".join(
             f"- {c.slug}: {c.short_label} ({c.group}) — {c.description}"
-            for c in system_cats if c.slug not in {"myorg", "urgent"}
+            for c in active_cats
         )
         cust_listing = "\n".join(
             f"- custom_{c.slug}: {c.name} (Custom) — {c.description}"
@@ -1472,11 +1482,13 @@ Respond ONLY with valid JSON:
 
 
 def ensure_user_labels(user) -> None:
-    """Pre-create Gmail labels for all categories. Call after onboarding."""
+    """Pre-create Gmail labels only for the user's active categories."""
     try:
+        from .models import UserCategoryPreference as _UCP
         svc = gmail_service(user)
-        for cat in EmailCategory.objects.all():
-            ensure_label(svc, f"AI/{cat.short_label}")
+        active_cats = _UCP.objects.filter(user=user).select_related("category")
+        for pref in active_cats:
+            ensure_label(svc, f"AI/{pref.category.short_label}")
         for cc in user.custom_categories.all():
             ensure_label(svc, f"AI/Custom/{cc.name}")
         for name in ("AI/Other", "AI/⭐ Critical", "AI/⭐ Important"):
@@ -1485,16 +1497,42 @@ def ensure_user_labels(user) -> None:
         print(f"ensure_user_labels: {exc}")
 
 
+# These slugs are ALWAYS included in every user's active category set,
+# regardless of their profile — they cover universal email noise.
+UNIVERSAL_SLUGS = [
+    "spam_phishing", "phishing", "bulk_spam",   # spam / phishing / junk
+    "promo",                                     # marketing / ads / promotions
+    "financial_scam",                            # scams / fraud
+    "newsletter",                                # newsletters
+    "news_alert",                                # news
+    "login_alert",                               # security / login alerts
+    "service_update",                            # service updates
+    "product_update",                            # product updates
+]
+
+
 def suggest_relevant_categories(profile, max_count=20):
-    """Use AI to pick the most relevant categories for this user."""
-    if _openai is None or not profile:
-        return []
+    """Use AI to pick relevant categories; always include universals."""
+    # Load universals first (those that exist in DB)
+    universal_cats = list(
+        EmailCategory.objects.filter(slug__in=UNIVERSAL_SLUGS)
+    )
+    universal_ids = {c.id for c in universal_cats}
 
-    cats = list(EmailCategory.objects.exclude(slug__in=["urgent", "myorg"]))
-    cats_listing = "\n".join(f"- {c.slug}: {c.name} ({c.group})" for c in cats)
+    # AI picks the remaining slots
+    ai_count = max(0, max_count - len(universal_cats))
 
-    prompt = f"""You are helping an email-triage app personalize onboarding.
-Given the user's profile, pick the {max_count} email categories they most likely care about.
+    if _openai is None or not profile or ai_count == 0:
+        return universal_cats[:max_count]
+
+    # Exclude universals + system internals from AI pool
+    pool = list(EmailCategory.objects.exclude(
+        slug__in=UNIVERSAL_SLUGS + ["urgent", "myorg", "other"]
+    ))
+    cats_listing = "\n".join(f"- {c.slug}: {c.name} ({c.group})" for c in pool)
+
+    prompt = f"""You are personalizing an email-triage app.
+Given the user's profile, pick the {ai_count} most relevant extra email categories for them.
 
 USER PROFILE
 Role: {profile.get_current_role_display()}
@@ -1508,12 +1546,11 @@ Industries: {profile.industries or 'N/A'}
 Email type: {profile.get_email_type_display()}
 Extra: {profile.additional_context or 'N/A'}
 
-CATEGORIES (slug: name (group))
+AVAILABLE CATEGORIES (slug: name (group))
 {cats_listing}
 
-Pick {max_count} slugs that this specific user will most benefit from customizing.
-Always include important universal ones (2fa, fraud, breach if security relevant).
-Skip obviously irrelevant ones for their role.
+Pick exactly {ai_count} slugs most relevant to this user's work and life.
+Skip categories clearly irrelevant to their role/industry.
 
 Respond with ONLY valid JSON: {{"slugs": ["slug1", "slug2", ...]}}
 """
@@ -1524,10 +1561,15 @@ Respond with ONLY valid JSON: {{"slugs": ["slug1", "slug2", ...]}}
             response_format={"type": "json_object"},
             temperature=0.3,
         )
-        data = json.loads(resp.choices[0].message.content)
-        slugs = data.get("slugs", [])
-        return list(EmailCategory.objects.filter(slug__in=slugs))
+        ai_slugs = json.loads(resp.choices[0].message.content).get("slugs", [])
+        ai_cats = list(EmailCategory.objects.filter(
+            slug__in=ai_slugs
+        ).exclude(id__in=universal_ids))
     except Exception as exc:
         print(f"AI suggest failed: {exc}")
-        # Fallback: return important + critical default ones
-        return list(EmailCategory.objects.filter(default_tier__in=["critical", "important"])[:max_count])
+        ai_cats = list(
+            EmailCategory.objects.filter(default_tier__in=["critical", "important"])
+            .exclude(id__in=universal_ids)[:ai_count]
+        )
+
+    return universal_cats + ai_cats[:ai_count]
