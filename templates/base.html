@@ -224,18 +224,18 @@ hr.dropdown-divider{margin:5px 0;border-color:var(--border)}
         <i class="bi bi-grid-1x2-fill"></i> Dashboard
       </a>
 
-      <!-- Compose button -->
+      <!-- Send Email / Compose button -->
       <button class="side-link" style="background:none;border:none;width:100%;cursor:pointer;text-align:left"
               onclick="openComposeModal()">
-        <i class="bi bi-pencil-square"></i> Compose Email
+        <i class="bi bi-pencil-square"></i> Send Email
       </button>
+      <a class="side-link {% if request.resolver_match.url_name == 'email_summary' %}active{% endif %}" href="{% url 'email_summary' %}">
+        <i class="bi bi-stars"></i> AI Summary
+      </a>
 
       <div class="side-section">Inbox</div>
       <a class="side-link {% if request.resolver_match.url_name == 'manage_emails' %}active{% endif %}" href="{% url 'manage_emails' %}">
         <i class="bi bi-inbox-fill"></i> Manage
-      </a>
-      <a class="side-link {% if request.resolver_match.url_name == 'email_summary' %}active{% endif %}" href="{% url 'email_summary' %}">
-        <i class="bi bi-stars"></i> AI Summary
       </a>
       <a class="side-link {% if request.resolver_match.url_name == 'sent' %}active{% endif %}" href="{% url 'sent' %}">
         <i class="bi bi-send-fill"></i> Sent
