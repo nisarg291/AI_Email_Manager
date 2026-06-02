@@ -128,12 +128,15 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-not-secret")
 DEBUG = os.environ.get("DEBUG", "True") == "True"
 ALLOWED_HOSTS = ["*"]
 
+_replit_domain = os.environ.get("REPLIT_DEV_DOMAIN", "")
 CSRF_TRUSTED_ORIGINS = [
     "https://*.replit.dev",
     "https://*.repl.co",
     "http://localhost:5000",
     "http://127.0.0.1:5000",
 ]
+if _replit_domain:
+    CSRF_TRUSTED_ORIGINS.append(f"https://{_replit_domain}")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -203,10 +206,12 @@ GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL   = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-GOOGLE_REDIRECT_URI = os.environ.get(
-    "GOOGLE_REDIRECT_URI",
-    "http://localhost:8000/accounts/google/callback/",
+_default_redirect = (
+    f"https://{_replit_domain}/accounts/google/callback/"
+    if _replit_domain
+    else "http://localhost:5000/accounts/google/callback/"
 )
+GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", _default_redirect)
 
 # All Gmail permissions requested in one go at login: read, send, modify, delete
 GOOGLE_SCOPES = [
