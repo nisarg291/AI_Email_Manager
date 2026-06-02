@@ -1,31 +1,213 @@
-
-{% extends "base.html" %}{% block title %}Profile{% endblock %}
-{% block topbar_title %}Profile{% endblock %}
+{% extends "base.html" %}
+{% block title %}Profile Settings{% endblock %}
+{% block topbar_title %}Profile Settings{% endblock %}
 {% block body %}
-<div class="d-flex justify-content-between mb-4">
-  <div>
-    <h2 class="fw-bold mb-1">Your profile</h2>
-    <p class="text-muted mb-0">Updating these helps the AI personalize classification.</p>
+
+<style>
+.prof-hero{
+  background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);
+  border-radius:20px;padding:32px 36px;color:#fff;
+  display:flex;align-items:center;gap:24px;
+  margin-bottom:28px;position:relative;overflow:hidden;
+}
+.prof-hero::before{
+  content:'';position:absolute;top:-40px;right:-40px;
+  width:200px;height:200px;border-radius:50%;
+  background:rgba(255,255,255,.07);
+}
+.prof-avatar{
+  width:72px;height:72px;border-radius:50%;
+  background:rgba(255,255,255,.2);
+  border:3px solid rgba(255,255,255,.4);
+  display:grid;place-items:center;
+  font-size:28px;font-weight:800;color:#fff;
+  flex-shrink:0;
+}
+.prof-hero-name{font-size:22px;font-weight:800;margin-bottom:4px}
+.prof-hero-email{font-size:14px;opacity:.8;margin-bottom:8px}
+.prof-hero-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);
+  padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;
+}
+
+/* Section cards */
+.prof-section{
+  background:#fff;border:1px solid var(--border);border-radius:16px;
+  overflow:hidden;margin-bottom:20px;
+}
+.prof-section-head{
+  padding:18px 24px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;background:#fafbfe;
+}
+.prof-section-icon{
+  width:36px;height:36px;border-radius:10px;
+  background:var(--primary-light);color:var(--primary);
+  display:grid;place-items:center;font-size:16px;flex-shrink:0;
+}
+.prof-section-title{font-size:15px;font-weight:700;color:var(--text);margin:0}
+.prof-section-sub{font-size:12px;color:var(--muted);margin:2px 0 0}
+.prof-section-body{padding:24px}
+
+/* Field groups */
+.prof-field{margin-bottom:18px}
+.prof-label{
+  display:flex;align-items:center;gap:6px;
+  font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;
+}
+.prof-label i{color:var(--primary);font-size:13px}
+.prof-label .hint{font-weight:400;color:var(--muted);font-size:11px;margin-left:auto}
+.prof-field-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:640px){.prof-field-grid{grid-template-columns:1fr}}
+
+/* Save bar */
+.prof-save-bar{
+  background:#fff;border:1px solid var(--border);border-radius:14px;
+  padding:18px 24px;
+  display:flex;align-items:center;justify-content:space-between;
+  gap:16px;flex-wrap:wrap;
+  box-shadow:0 -4px 20px rgba(15,23,42,.05);
+}
+.prof-save-hint{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.btn-save{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:11px 28px;border-radius:10px;
+  background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);
+  border:none;color:#fff;font-size:14px;font-weight:700;
+  cursor:pointer;font-family:'Inter',sans-serif;
+  box-shadow:0 6px 18px rgba(79,70,229,.35);
+  transition:all .15s;
+}
+.btn-save:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(79,70,229,.45);color:#fff}
+</style>
+
+<form method="post" novalidate>{% csrf_token %}
+
+  <!-- Hero -->
+  <div class="prof-hero">
+    <div class="prof-avatar">{{ user.email|slice:":1"|upper }}</div>
+    <div style="position:relative;z-index:1">
+      <div class="prof-hero-name">{{ profile.full_name|default:user.get_full_name|default:user.email }}</div>
+      <div class="prof-hero-email">{{ user.email }}</div>
+      <div class="prof-hero-badge"><i class="bi bi-cpu-fill"></i> AI-powered inbox triage</div>
+    </div>
   </div>
-</div>
-<form method="post" class="card-modern" style="max-width:900px">{% csrf_token %}
-  <div class="row g-3">
-    <div class="col-md-6"><label class="form-label">Full name</label>{{ f1.full_name }}</div>
-    <div class="col-md-6"><label class="form-label">Role</label>{{ f1.current_role }}</div>
-    <div class="col-md-6"><label class="form-label">Position</label>{{ f1.current_position }}</div>
-    <div class="col-md-6"><label class="form-label">Organization</label>{{ f1.current_organization }}</div>
-    <div class="col-md-6"><label class="form-label">Org domain</label>{{ f1.org_domain }}</div>
-    <div class="col-md-6"><label class="form-label">Email type</label>{{ f1.email_type }}</div>
-    <div class="col-md-6"><label class="form-label">Education</label>{{ f2.education }}</div>
-    <div class="col-md-6"><label class="form-label">Experience</label>{{ f2.experience }}</div>
-    <div class="col-md-6"><label class="form-label">Skills & interests</label>{{ f2.skills_interests }}</div>
-    <div class="col-md-6"><label class="form-label">Target roles</label>{{ f2.target_roles }}</div>
-    <div class="col-md-6"><label class="form-label">Industries</label>{{ f2.industries }}</div>
-    <div class="col-md-6"><label class="form-label">Location</label>{{ f2.location }}</div>
-    <div class="col-12"><label class="form-label">Additional context</label>{{ f2.additional_context }}</div>
-    <div class="col-12"><label class="form-label">Blocked senders</label>{{ f2.blocked_senders }}</div>
+
+  <!-- Section 1: Identity -->
+  <div class="prof-section">
+    <div class="prof-section-head">
+      <div class="prof-section-icon"><i class="bi bi-person-fill"></i></div>
+      <div>
+        <div class="prof-section-title">Personal Information</div>
+        <div class="prof-section-sub">Your identity and role help the AI prioritize correctly.</div>
+      </div>
+    </div>
+    <div class="prof-section-body">
+      <div class="prof-field-grid">
+        <div class="prof-field">
+          <label class="prof-label"><i class="bi bi-type"></i> Full name</label>
+          {{ f1.full_name }}
+        </div>
+        <div class="prof-field">
+          <label class="prof-label"><i class="bi bi-briefcase"></i> Role</label>
+          {{ f1.current_role }}
+        </div>
+        <div class="prof-field">
+          <label class="prof-label"><i class="bi bi-award"></i> Position / title</label>
+          {{ f1.current_position }}
+        </div>
+        <div class="prof-field">
+          <label class="prof-label"><i class="bi bi-building"></i> Organization</label>
+          {{ f1.current_organization }}
+        </div>
+        <div class="prof-field">
+          <label class="prof-label"><i class="bi bi-globe2"></i> Work domain <span class="hint">Auto-labels internal emails</span></label>
+          {{ f1.org_domain }}
+        </div>
+        <div class="prof-field">
+          <label class="prof-label"><i class="bi bi-envelope"></i> Inbox type</label>
+          {{ f1.email_type }}
+        </div>
+      </div>
+    </div>
   </div>
-  <button class="btn btn-primary mt-3">Save</button>
-  <a href="{% url 'categories' %}" class="btn btn-link">Edit category preferences →</a>
+
+  <!-- Section 2: Professional Background -->
+  <div class="prof-section">
+    <div class="prof-section-head">
+      <div class="prof-section-icon"><i class="bi bi-layers-fill"></i></div>
+      <div>
+        <div class="prof-section-title">Professional Background</div>
+        <div class="prof-section-sub">Context that shapes how emails are classified for you.</div>
+      </div>
+    </div>
+    <div class="prof-section-body">
+      <div class="prof-field-grid">
+        <div class="prof-field">
+          <label class="prof-label"><i class="bi bi-mortarboard-fill"></i> Education</label>
+          {{ f2.education }}
+        </div>
+        <div class="prof-field">
+          <label class="prof-label"><i class="bi bi-briefcase-fill"></i> Experience</label>
+          {{ f2.experience }}
+        </div>
+        <div class="prof-field">
+          <label class="prof-label"><i class="bi bi-lightning-charge-fill"></i> Skills & interests</label>
+          {{ f2.skills_interests }}
+        </div>
+        <div class="prof-field">
+          <label class="prof-label"><i class="bi bi-geo-alt-fill"></i> Location</label>
+          {{ f2.location }}
+        </div>
+        <div class="prof-field">
+          <label class="prof-label"><i class="bi bi-crosshair"></i> Target roles <span class="hint">If job-seeking</span></label>
+          {{ f2.target_roles }}
+        </div>
+        <div class="prof-field">
+          <label class="prof-label"><i class="bi bi-diagram-3-fill"></i> Industries</label>
+          {{ f2.industries }}
+        </div>
+      </div>
+      <div class="prof-field" style="margin-top:4px">
+        <label class="prof-label"><i class="bi bi-chat-text-fill"></i> Additional context for AI <span class="hint">Optional</span></label>
+        {{ f2.additional_context }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 3: Block list -->
+  <div class="prof-section">
+    <div class="prof-section-head">
+      <div class="prof-section-icon" style="background:#fee2e2;color:#dc2626"><i class="bi bi-slash-circle-fill"></i></div>
+      <div>
+        <div class="prof-section-title">Blocked Senders</div>
+        <div class="prof-section-sub">Emails from these addresses or domains are auto-trashed, regardless of category.</div>
+      </div>
+    </div>
+    <div class="prof-section-body">
+      <div class="prof-field">
+        <label class="prof-label"><i class="bi bi-ban-fill"></i> Block list <span class="hint">One email or domain per line</span></label>
+        {{ f2.blocked_senders }}
+        <div style="font-size:11px;color:var(--muted);margin-top:6px">Examples: <code>newsletter@example.com</code> &nbsp;or&nbsp; <code>spammy-domain.net</code></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save bar -->
+  <div class="prof-save-bar">
+    <div class="prof-save-hint">
+      <i class="bi bi-info-circle" style="color:var(--primary)"></i>
+      Changes apply to future classification runs.
+    </div>
+    <div style="display:flex;gap:12px;align-items:center">
+      <a href="{% url 'categories' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-tags me-1"></i> Edit categories
+      </a>
+      <button type="submit" class="btn-save">
+        <i class="bi bi-check2"></i> Save changes
+      </button>
+    </div>
+  </div>
+
 </form>
 {% endblock %}

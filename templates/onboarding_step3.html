@@ -1,66 +1,151 @@
+{% extends "onboarding_base.html" %}
+{% block title %}Step 3 · Email Categories{% endblock %}
+{% block card_width %}980px{% endblock %}
 
-Replace with:
+{% block s1_class %}done{% endblock %}
+{% block s1_icon %}<i class="bi bi-check2"></i>{% endblock %}
+{% block l1_class %}done{% endblock %}
+{% block s2_class %}done{% endblock %}
+{% block s2_icon %}<i class="bi bi-check2"></i>{% endblock %}
+{% block l2_class %}done{% endblock %}
+{% block s3_class %}active{% endblock %}
+{% block s3_icon %}3{% endblock %}
 
-{% extends "base.html" %}{% block title %}Categories · Onboarding{% endblock %}
-{% block topbar_title %}Get started{% endblock %}
-{% block body %}
-<div class="wizard-head">
-  <div class="wizard-step"><span class="dot"></span>Step {{ step }} of 3 · Categorize</div>
-  <h1 class="wizard-title">Personalized for you</h1>
-  <p class="wizard-sub">
-    AI picked the <strong>{{ total_relevant }} categories</strong> most relevant to your profile.
-    Adjust their priority — the rest will use smart defaults.
-  </p>
-</div>
+{% block ob_content %}
+<form method="post" novalidate id="catForm">{% csrf_token %}
 
-<div class="d-flex justify-content-center gap-3 mb-4 flex-wrap small text-muted">
-  <span><span class="badge-tier tier-critical">🔥 Critical</span> always notify</span>
-  <span><span class="badge-tier tier-important">⭐ Important</span> stay in inbox</span>
-  <span><span class="badge-tier tier-normal">📌 Normal</span> just label</span>
-  <span><span class="badge-tier tier-low">📥 Low</span> file away</span>
-  <span><span class="badge-tier tier-ignore">🗑️ Ignore</span> auto-trash</span>
-</div>
+  <div class="ob-card-body" style="padding-bottom:12px">
+    <!-- Header -->
+    <div class="ob-card-header">
+      <div class="ob-card-step-badge"><i class="bi bi-tags"></i>Step 3 of 3 — Final step!</div>
+      <h1 class="ob-card-title">Your email categories</h1>
+      <p class="ob-card-sub">
+        AI selected the <strong>{{ total_relevant }} categories</strong> most relevant to your profile.
+        Set a priority for each — this controls how the AI handles those emails.
+      </p>
+    </div>
 
-<form method="post" style="max-width:900px;margin:0 auto">{% csrf_token %}
-  {% for group, cats in cat_groups.items %}
-    <div class="cat-group-title">{{ group }}</div>
-    {% for item in cats %}
-      <input type="hidden" name="shown_cat_ids" value="{{ item.obj.id }}">
-      <div class="cat-card">
-        <div class="cat-card-head">
-          <div>
-            <div class="cat-name">{{ item.obj.name }} <span class="badge-cat ms-1">{{ item.obj.short_label }}</span></div>
-            <div class="cat-desc">{{ item.obj.description }}</div>
+    <!-- Tier legend -->
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:28px">
+      <div class="tier-legend-item crit"><i class="bi bi-fire"></i> Critical <span>Always in inbox</span></div>
+      <div class="tier-legend-item imp"><i class="bi bi-star-fill"></i> Important <span>Stays in inbox</span></div>
+      <div class="tier-legend-item norm"><i class="bi bi-pin-fill"></i> Normal <span>Label & keep</span></div>
+      <div class="tier-legend-item low"><i class="bi bi-inbox-fill"></i> Low <span>File away</span></div>
+      <div class="tier-legend-item ign"><i class="bi bi-trash3-fill"></i> Ignore <span>Auto-trash</span></div>
+    </div>
+
+    <!-- Categories by group -->
+    {% for group, cats in cat_groups.items %}
+      <div class="cat3-group-header">
+        <i class="bi bi-folder2-open"></i> {{ group }}
+      </div>
+      <div class="cat3-grid">
+        {% for item in cats %}
+          <input type="hidden" name="shown_cat_ids" value="{{ item.obj.id }}">
+          <div class="cat3-card" data-cat="{{ item.obj.id }}">
+            <div class="cat3-top">
+              <div>
+                <div class="cat3-name">{{ item.obj.name }}</div>
+                <div class="cat3-desc">{{ item.obj.description }}</div>
+              </div>
+              <span class="cat3-label">{{ item.obj.short_label }}</span>
+            </div>
+            <div class="cat3-tiers">
+              {% for val, icon, cls, title in tier_options %}
+                <label class="cat3-pill {{ cls }} {% if item.tier == val %}selected{% endif %}" title="{{ title }}">
+                  <input type="radio" name="tier_{{ item.obj.id }}" value="{{ val }}" {% if item.tier == val %}checked{% endif %} hidden>
+                  {{ icon }}
+                </label>
+              {% endfor %}
+            </div>
           </div>
-        </div>
-        <div class="tier-pills">
-          <label class="tier-pill {% if item.tier == 'critical' %}selected crit{% endif %}"><input type="radio" name="tier_{{ item.obj.id }}" value="critical" {% if item.tier == 'critical' %}checked{% endif %}>🔥 Critical</label>
-          <label class="tier-pill {% if item.tier == 'important' %}selected imp{% endif %}"><input type="radio" name="tier_{{ item.obj.id }}" value="important" {% if item.tier == 'important' %}checked{% endif %}>⭐ Important</label>
-          <label class="tier-pill {% if item.tier == 'normal' %}selected norm{% endif %}"><input type="radio" name="tier_{{ item.obj.id }}" value="normal" {% if item.tier == 'normal' %}checked{% endif %}>📌 Normal</label>
-          <label class="tier-pill {% if item.tier == 'low' %}selected low{% endif %}"><input type="radio" name="tier_{{ item.obj.id }}" value="low" {% if item.tier == 'low' %}checked{% endif %}>📥 Low</label>
-          <label class="tier-pill {% if item.tier == 'ignore' %}selected ign{% endif %}"><input type="radio" name="tier_{{ item.obj.id }}" value="ignore" {% if item.tier == 'ignore' %}checked{% endif %}>🗑️ Ignore</label>
-        </div>
+        {% endfor %}
       </div>
     {% endfor %}
-  {% endfor %}
 
-  <div class="d-flex justify-content-between my-4 pt-3" style="border-top:1px solid var(--border)">
-    <a class="btn btn-outline-secondary" href="{% url 'onboarding_step2' %}"><i class="bi bi-arrow-left"></i> Back</a>
-    <button class="btn btn-primary px-4">Finish & Go to Dashboard <i class="bi bi-check2"></i></button>
+    <p class="ob-skip" style="margin-top:20px">
+      💡 You can add, remove, or adjust all {{ total_pool }}+ categories anytime from <strong>Settings → Categories</strong>.
+    </p>
   </div>
 
-  <p class="text-center text-muted small mb-4">
-    💡 You can edit all {{ EmailCategory.objects.count|default:"150+" }} categories anytime from <strong>Settings → Categories</strong>.
-  </p>
+  <!-- Footer -->
+  <div class="ob-card-footer">
+    <a href="{% url 'onboarding_step2' %}" class="ob-btn-back">
+      <i class="bi bi-arrow-left"></i> Back
+    </a>
+    <button type="submit" class="ob-btn-next ob-btn-finish">
+      <i class="bi bi-check2-circle"></i> Finish setup &amp; classify inbox
+    </button>
+  </div>
+
 </form>
 
+<style>
+/* Tier legend */
+.tier-legend-item{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:5px 12px;border-radius:20px;
+  font-size:12px;font-weight:600;border:1.5px solid;
+}
+.tier-legend-item span{font-weight:400;color:inherit;opacity:.7;margin-left:2px}
+.tier-legend-item.crit{background:#fee2e2;color:#b91c1c;border-color:#fca5a5}
+.tier-legend-item.imp{background:#fef3c7;color:#92400e;border-color:#fcd34d}
+.tier-legend-item.norm{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd}
+.tier-legend-item.low{background:#f1f5f9;color:#475569;border-color:#cbd5e1}
+.tier-legend-item.ign{background:#1e293b;color:#e2e8f0;border-color:#334155}
+
+/* Group header */
+.cat3-group-header{
+  font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);margin:24px 0 12px;
+  display:flex;align-items:center;gap:7px;
+}
+.cat3-group-header::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* Category grid */
+.cat3-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:4px}
+@media(max-width:600px){.cat3-grid{grid-template-columns:1fr}}
+
+/* Category card */
+.cat3-card{
+  border:1.5px solid var(--border);border-radius:14px;padding:14px 16px;
+  background:#fff;transition:all .15s;
+}
+.cat3-card:hover{border-color:#c7d2fe;box-shadow:0 4px 14px rgba(79,70,229,.08)}
+.cat3-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
+.cat3-name{font-weight:600;font-size:13px;color:var(--text);margin-bottom:3px}
+.cat3-desc{font-size:11px;color:var(--muted);line-height:1.4}
+.cat3-label{
+  font-size:10px;font-weight:700;letter-spacing:.04em;
+  background:#eef2ff;color:#4338ca;
+  padding:3px 8px;border-radius:6px;white-space:nowrap;flex-shrink:0;
+}
+
+/* Tier pills */
+.cat3-tiers{display:flex;gap:6px}
+.cat3-pill{
+  flex:1;text-align:center;padding:7px 4px;border-radius:8px;
+  font-size:13px;border:1.5px solid var(--border);
+  cursor:pointer;background:#fff;
+  transition:all .15s;user-select:none;
+}
+.cat3-pill:hover{border-color:#a5b4fc;background:#eef2ff;transform:translateY(-1px)}
+.cat3-pill.crit.selected{background:#fee2e2;border-color:#fca5a5}
+.cat3-pill.imp.selected{background:#fef3c7;border-color:#fcd34d}
+.cat3-pill.norm.selected{background:#dbeafe;border-color:#93c5fd}
+.cat3-pill.low.selected{background:#f1f5f9;border-color:#cbd5e1}
+.cat3-pill.ign.selected{background:#1e293b;border-color:#1e293b;color:#fff}
+</style>
+{% endblock %}
+
+{% block extra_js %}
 <script>
-document.querySelectorAll('.tier-pill input').forEach(input => {
-  input.addEventListener('change', e => {
-    const group = e.target.closest('.tier-pills');
-    const m = {critical:'crit',important:'imp',normal:'norm',low:'low',ignore:'ign'};
-    group.querySelectorAll('.tier-pill').forEach(p => p.classList.remove('selected','crit','imp','norm','low','ign'));
-    e.target.closest('.tier-pill').classList.add('selected', m[e.target.value]);
+document.querySelectorAll('.cat3-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    const tiers = pill.closest('.cat3-tiers');
+    tiers.querySelectorAll('.cat3-pill').forEach(p => p.classList.remove('selected'));
+    pill.classList.add('selected');
+    pill.querySelector('input').checked = true;
   });
 });
 </script>

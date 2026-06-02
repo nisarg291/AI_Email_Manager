@@ -1,27 +1,91 @@
-{% extends "base.html" %}{% block title %}Background · Onboarding{% endblock %}
-{% block topbar_title %}Get started{% endblock %}
-{% block body %}
-<div class="wizard-head">
-  <div class="wizard-step"><span class="dot"></span>Step {{ step }} of 3 · Background</div>
-  <h1 class="wizard-title">A little more context</h1>
-  <p class="wizard-sub">All fields are optional — fill what you'd like the AI to know about you.</p>
-</div>
+{% extends "onboarding_base.html" %}
+{% block title %}Step 2 · Background{% endblock %}
 
-<div class="card-modern" style="max-width:820px;margin:0 auto">
-  <form method="post" class="row g-3">{% csrf_token %}
-    <div class="col-md-6"><label class="form-label">Education</label>{{ form.education }}</div>
-    <div class="col-md-6"><label class="form-label">Experience</label>{{ form.experience }}</div>
-    <div class="col-md-6"><label class="form-label">Skills & interests</label>{{ form.skills_interests }}</div>
-    <div class="col-md-6"><label class="form-label">Target roles <small>(if job-seeking)</small></label>{{ form.target_roles }}</div>
-    <div class="col-md-6"><label class="form-label">Industries of interest</label>{{ form.industries }}</div>
-    <div class="col-md-6"><label class="form-label">Location</label>{{ form.location }}</div>
-    <div class="col-12"><label class="form-label">Anything else AI should know?</label>{{ form.additional_context }}</div>
-    <div class="col-12"><label class="form-label">Block these senders <small>(one email or domain per line — auto-trashed)</small></label>{{ form.blocked_senders }}</div>
+{% block s1_class %}done{% endblock %}
+{% block s1_icon %}<i class="bi bi-check2"></i>{% endblock %}
+{% block l1_class %}done{% endblock %}
+{% block s2_class %}active{% endblock %}
+{% block s2_icon %}2{% endblock %}
+{% block s3_class %}{% endblock %}
+{% block s3_icon %}3{% endblock %}
 
-    <div class="col-12 d-flex justify-content-between mt-3 pt-3" style="border-top:1px solid var(--border)">
-      <a class="btn btn-outline-secondary" href="{% url 'onboarding_step1' %}"><i class="bi bi-arrow-left"></i> Back</a>
-      <button class="btn btn-primary px-4">Continue <i class="bi bi-arrow-right"></i></button>
+{% block ob_content %}
+<form method="post" novalidate>{% csrf_token %}
+
+  <div class="ob-card-body">
+    <!-- Header -->
+    <div class="ob-card-header">
+      <div class="ob-card-step-badge"><i class="bi bi-layers"></i>Step 2 of 3</div>
+      <h1 class="ob-card-title">A little more context</h1>
+      <p class="ob-card-sub">The more you share, the smarter the AI gets at filtering what matters to you. Everything is optional.</p>
     </div>
-  </form>
-</div>
+
+    <!-- Section: Professional background -->
+    <div class="ob-section-title"><i class="bi bi-mortarboard"></i> Professional background</div>
+
+    <div class="ob-field-grid">
+      <div class="ob-field">
+        <label class="ob-label"><i class="bi bi-mortarboard-fill"></i> Education</label>
+        {{ form.education }}
+      </div>
+      <div class="ob-field">
+        <label class="ob-label"><i class="bi bi-briefcase-fill"></i> Work experience</label>
+        {{ form.experience }}
+      </div>
+    </div>
+
+    <div class="ob-field-grid">
+      <div class="ob-field">
+        <label class="ob-label"><i class="bi bi-lightning-charge-fill"></i> Skills & interests</label>
+        {{ form.skills_interests }}
+      </div>
+      <div class="ob-field">
+        <label class="ob-label"><i class="bi bi-geo-alt-fill"></i> Location</label>
+        {{ form.location }}
+      </div>
+    </div>
+
+    <!-- Section: Job seeking (optional) -->
+    <div class="ob-section-title" style="margin-top:8px"><i class="bi bi-search-heart"></i> Job seeking <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:12px">(skip if not applicable)</span></div>
+
+    <div class="ob-field-grid">
+      <div class="ob-field">
+        <label class="ob-label"><i class="bi bi-crosshair"></i> Target roles</label>
+        {{ form.target_roles }}
+      </div>
+      <div class="ob-field">
+        <label class="ob-label"><i class="bi bi-diagram-3-fill"></i> Industries of interest</label>
+        {{ form.industries }}
+      </div>
+    </div>
+
+    <!-- Section: AI context -->
+    <div class="ob-section-title" style="margin-top:8px"><i class="bi bi-cpu"></i> AI context</div>
+
+    <div class="ob-field">
+      <label class="ob-label"><i class="bi bi-chat-text-fill"></i> Anything else the AI should know? <span class="ob-hint">Optional</span></label>
+      {{ form.additional_context }}
+    </div>
+
+    <!-- Section: Blocked senders -->
+    <div class="ob-section-title" style="margin-top:8px"><i class="bi bi-slash-circle"></i> Block list</div>
+
+    <div class="ob-field">
+      <label class="ob-label"><i class="bi bi-ban-fill"></i> Block these senders <span class="ob-hint">Auto-trashed, even if classified</span></label>
+      {{ form.blocked_senders }}
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">One email address or domain per line. Example: <code>spam@example.com</code> or <code>newsletters.net</code></div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="ob-card-footer">
+    <a href="{% url 'onboarding_step1' %}" class="ob-btn-back">
+      <i class="bi bi-arrow-left"></i> Back
+    </a>
+    <button type="submit" class="ob-btn-next">
+      Continue <i class="bi bi-arrow-right"></i>
+    </button>
+  </div>
+
+</form>
 {% endblock %}

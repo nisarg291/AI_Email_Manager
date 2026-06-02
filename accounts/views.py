@@ -368,8 +368,11 @@ def google_callback(request):
     request.session.pop("oauth_state", None)
     request.session.modified = True
 
-    if not user.profile.onboarded:
-        return redirect("profile")
+    profile_obj, _ = UserProfile.objects.get_or_create(
+        user=user, defaults={"full_name": user.get_full_name()}
+    )
+    if not profile_obj.onboarded:
+        return redirect("onboarding_step1")
     return redirect("dashboard")
 
 
@@ -698,10 +701,20 @@ def onboarding_step3(request):
             {"obj": c, "tier": prefs.get(c.id, c.default_tier)}
         )
 
+    from .models import EmailCategory as _EC
+    tier_options = [
+        ("critical", "🔥", "crit", "Critical — always in inbox"),
+        ("important", "⭐", "imp",  "Important — stays in inbox"),
+        ("normal",    "📌", "norm", "Normal — label & keep"),
+        ("low",       "📥", "low",  "Low — file away"),
+        ("ignore",    "🗑️", "ign",  "Ignore — auto-trash"),
+    ]
     return render(request, "onboarding_step3.html", {
         "cat_groups": cat_groups,
         "step": 3,
         "total_relevant": len(relevant),
+        "total_pool": _EC.objects.count(),
+        "tier_options": tier_options,
     })
 
 @login_required
