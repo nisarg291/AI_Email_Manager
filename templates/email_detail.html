@@ -21,9 +21,9 @@
 .detail-meta-row span{word-break:break-all}
 .badge-trash{display:inline-flex;align-items:center;gap:5px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:20px;padding:3px 10px;font-size:.75rem;font-weight:600;margin-top:10px}
 
-/* ── Header action buttons ── */
-.detail-header-actions{display:flex;flex-wrap:wrap;gap:8px;flex-shrink:0;align-items:flex-start;padding-top:2px}
-.btn-act{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:8px;font-size:.81rem;font-weight:500;border:none;cursor:pointer;text-decoration:none;transition:all .15s;white-space:nowrap}
+/* ── Action bar (below email body) ── */
+.detail-action-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:18px 26px;border-top:1px solid #e2e8f0;background:#f8fafc}
+.btn-act{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:.83rem;font-weight:500;border:none;cursor:pointer;text-decoration:none;transition:all .15s;white-space:nowrap}
 .btn-act-trash{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
 .btn-act-trash:hover{background:#fee2e2;color:#b91c1c}
 .btn-act-delete{background:#fff;color:#dc2626;border:1px solid #fecaca}
@@ -75,8 +75,10 @@
 @keyframes spin{to{transform:rotate(360deg)}}
 
 @media(max-width:640px){
-  .detail-header-actions{width:100%}
   .detail-header-inner{flex-direction:column}
+  .detail-action-bar{padding:14px 16px;gap:8px}
+  .btn-act{font-size:.79rem;padding:7px 12px}
+  .detail-body-plain{padding:16px}
 }
 </style>
 
@@ -96,51 +98,6 @@
           {% if email.date %}<div class="detail-meta-row"><strong>Date</strong><span class="local-ts-full" data-ts="{{ email.date|date:'c' }}">{{ email.date|date:"D, d M Y · H:i" }}</span></div>{% endif %}
         </div>
         {% if email.in_trash %}<span class="badge-trash"><i class="bi bi-trash"></i> In Trash</span>{% endif %}
-      </div>
-
-      <div class="detail-header-actions">
-        {% if email.in_trash %}
-          <form method="post" action="{% url 'trash_restore' email.id %}">
-            {% csrf_token %}
-            <button type="submit" class="btn-act btn-act-restore">
-              <i class="bi bi-arrow-counterclockwise"></i> Restore
-            </button>
-          </form>
-          <form method="post" action="{% url 'email_delete_action' email.id %}"
-                onsubmit="return confirm('Permanently delete this email? Cannot be undone.')">
-            {% csrf_token %}
-            <input type="hidden" name="back" value="{{ back_to }}">
-            <button type="submit" class="btn-act btn-act-delete">
-              <i class="bi bi-x-lg"></i> Delete Permanently
-            </button>
-          </form>
-        {% else %}
-          <form method="post" action="{% url 'email_trash_action' email.id %}">
-            {% csrf_token %}
-            <input type="hidden" name="back" value="{{ back_to }}">
-            <button type="submit" class="btn-act btn-act-trash">
-              <i class="bi bi-trash"></i> Move to Trash
-            </button>
-          </form>
-          <form method="post" action="{% url 'email_delete_action' email.id %}"
-                onsubmit="return confirm('Permanently delete this email? Cannot be undone.')">
-            {% csrf_token %}
-            <input type="hidden" name="back" value="{{ back_to }}">
-            <button type="submit" class="btn-act btn-act-delete">
-              <i class="bi bi-x-lg"></i> Delete Permanently
-            </button>
-          </form>
-        {% endif %}
-
-        {% if ce and ce.unsubscribe_url %}
-          <a href="{{ ce.unsubscribe_url }}" target="_blank" rel="noopener" class="btn-act btn-act-unsub">
-            <i class="bi bi-box-arrow-up-right"></i> Unsubscribe
-          </a>
-        {% endif %}
-
-        <button type="button" class="btn-act btn-act-reply" id="reply-toggle" onclick="toggleReplyPanel()">
-          <i class="bi bi-stars"></i> Reply with AI
-        </button>
       </div>
 
     </div>
@@ -185,6 +142,50 @@
       <pre>{{ email.body }}</pre>
     </div>
   {% endif %}
+
+  <!-- ── Action bar (after reading the email) ── -->
+  <div class="detail-action-bar">
+    {% if email.in_trash %}
+      <form method="post" action="{% url 'trash_restore' email.id %}">
+        {% csrf_token %}
+        <button type="submit" class="btn-act btn-act-restore">
+          <i class="bi bi-arrow-counterclockwise"></i> Restore
+        </button>
+      </form>
+      <form method="post" action="{% url 'email_delete_action' email.id %}"
+            onsubmit="return confirm('Permanently delete this email? Cannot be undone.')">
+        {% csrf_token %}
+        <input type="hidden" name="back" value="{{ back_to }}">
+        <button type="submit" class="btn-act btn-act-delete">
+          <i class="bi bi-x-lg"></i> Delete Permanently
+        </button>
+      </form>
+    {% else %}
+      <form method="post" action="{% url 'email_trash_action' email.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="back" value="{{ back_to }}">
+        <button type="submit" class="btn-act btn-act-trash">
+          <i class="bi bi-trash"></i> Move to Trash
+        </button>
+      </form>
+      <form method="post" action="{% url 'email_delete_action' email.id %}"
+            onsubmit="return confirm('Permanently delete this email? Cannot be undone.')">
+        {% csrf_token %}
+        <input type="hidden" name="back" value="{{ back_to }}">
+        <button type="submit" class="btn-act btn-act-delete">
+          <i class="bi bi-x-lg"></i> Delete Permanently
+        </button>
+      </form>
+    {% endif %}
+    {% if ce and ce.unsubscribe_url %}
+      <a href="{{ ce.unsubscribe_url }}" target="_blank" rel="noopener" class="btn-act btn-act-unsub">
+        <i class="bi bi-box-arrow-up-right"></i> Unsubscribe
+      </a>
+    {% endif %}
+    <button type="button" class="btn-act btn-act-reply" id="reply-toggle" onclick="toggleReplyPanel()">
+      <i class="bi bi-stars"></i> Reply with AI
+    </button>
+  </div>
 
   <!-- ── AI Reply panel ── -->
   <div class="reply-panel" id="reply-panel">

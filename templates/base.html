@@ -23,7 +23,7 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
 
 /* ─── Layout ─── */
 .app-shell{display:flex;min-height:100vh}
-.sidebar{width:var(--sidebar-w);background:linear-gradient(180deg,#1a1d3a 0%,#0f1129 100%);color:#cbd5e1;padding:20px 14px;flex-shrink:0;position:fixed;top:0;left:0;height:100vh;overflow-y:auto;z-index:200;transition:transform .25s ease;box-shadow:4px 0 24px rgba(15,23,42,.1)}
+.sidebar{width:var(--sidebar-w);background:linear-gradient(180deg,#1a1d3a 0%,#0f1129 100%);color:#cbd5e1;padding:20px 14px 60px;flex-shrink:0;position:fixed;top:0;left:0;height:100vh;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;z-index:200;transition:transform .25s ease;box-shadow:4px 0 24px rgba(15,23,42,.1)}
 .main-wrap{flex:1;min-width:0;background:var(--bg);margin-left:var(--sidebar-w);transition:margin-left .25s ease}
 
 /* ─── Sidebar branding ─── */
@@ -200,10 +200,15 @@ hr.dropdown-divider{margin:5px 0;border-color:var(--border)}
   .hamburger{display:flex}
   .main{padding:16px}
   .topbar{padding:10px 16px}
-  .email-table thead{display:none}
-  .email-table tbody tr{display:block;border-bottom:1px solid #f1f5f9;padding:10px 14px}
-  .email-table tbody td{display:inline;padding:0 4px 0 0;border:none;font-size:13px}
-  .email-table .chk-col{display:inline-flex;vertical-align:middle}
+  .email-table thead th:nth-child(3),
+  .email-table thead th:nth-child(4),
+  .email-table thead th:nth-child(5){display:none}
+  .email-table tbody td:nth-child(3),
+  .email-table tbody td:nth-child(4),
+  .email-table tbody td:nth-child(5){display:none}
+  .email-table tbody tr{cursor:pointer}
+  .email-table tbody td:nth-child(2){max-width:calc(100vw - 120px)}
+  .email-table tbody td .sender,.email-table tbody td .subject{max-width:100%}
 }
 </style>
 </head>
