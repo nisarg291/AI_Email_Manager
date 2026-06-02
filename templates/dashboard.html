@@ -1,0 +1,40 @@
+
+{% extends "base.html" %}{% block title %}Dashboard{% endblock %}
+{% block topbar_title %}Dashboard{% endblock %}
+{% block body %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h2 class="mb-1 fw-bold">Welcome back{% if user.first_name %}, {{ user.first_name }}{% endif %} 👋</h2>
+    <p class="text-muted mb-0">Here's what's happening in your inbox.</p>
+  </div>
+  <a href="{% url 'manage_emails' %}" class="btn btn-primary"><i class="bi bi-magic"></i> Run AI now</a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3"><div class="stat-card"><div class="stat-label">Classified</div><div class="stat-value">{{ stats.total }}</div></div></div>
+  <div class="col-md-3"><div class="stat-card"><div class="stat-label">Urgent</div><div class="stat-value" style="color:var(--critical)">{{ stats.urgent }}</div></div></div>
+  <div class="col-md-3"><div class="stat-card"><div class="stat-label">Important</div><div class="stat-value" style="color:var(--important)">{{ stats.important }}</div></div></div>
+  <div class="col-md-3"><div class="stat-card"><div class="stat-label">Auto-trashed</div><div class="stat-value text-muted">{{ stats.trashed }}</div></div></div>
+</div>
+
+<div class="card-modern">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Recent activity</h5>
+    <a href="{% url 'manage_emails' %}" class="small">View all →</a>
+  </div>
+  {% for e in recent %}
+    <a href="{% url 'email_detail' e.gmail_id %}" class="d-flex justify-content-between py-2 border-bottom text-decoration-none text-body">
+      <div class="text-truncate" style="max-width:60%">
+        <div class="subject text-truncate">{{ e.subject }}</div>
+        <div class="sender text-truncate">{{ e.sender }}</div>
+      </div>
+      <div class="text-end">
+        {% if e.category %}<span class="badge-cat">{{ e.category.short_label }}</span>{% endif %}
+        <div class="small text-muted mt-1">{{ e.received_at|date:"M d, H:i" }}</div>
+      </div>
+    </a>
+  {% empty %}
+    <p class="text-muted text-center py-4 mb-0">No emails classified yet. <a href="{% url 'manage_emails' %}">Run AI →</a></p>
+  {% endfor %}
+</div>
+{% endblock %}

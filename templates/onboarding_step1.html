@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block title %}Onboarding · About you{% endblock %}
+{% block topbar_title %}Get started{% endblock %}
+{% block body %}
+<div class="wizard-head">
+  <div class="wizard-step"><span class="dot"></span>Step {{ step }} of 3 · Background</div>
+  <h1 class="wizard-title">A little more context</h1>
+  <p class="wizard-sub">All fields are optional — fill what you'd like the AI to know about you.</p>
+</div>
+<div class="card-modern" style="max-width:700px;margin:0 auto">
+  <form method="post" class="row g-3">{% csrf_token %}
+    <div class="col-md-6"><label class="form-label">Full name</label>{{ form.full_name }}</div>
+    <div class="col-md-6"><label class="form-label">What best describes you?</label>{{ form.current_role }}</div>
+    <div class="col-12"><label class="form-label">Current position / title</label>{{ form.current_position }}</div>
+    <div class="col-md-6"><label class="form-label">Current organization</label>{{ form.current_organization }}</div>
+    <div class="col-md-6"><label class="form-label">Org email domain <small class="text-muted">(e.g. acme.com)</small></label>{{ form.org_domain }}</div>
+    <div class="col-md-6"><label class="form-label">Email type</label>{{ form.email_type }}</div>
+    <div class="col-12 d-flex justify-content-end mt-2">
+      <button class="btn btn-primary px-4">Next <i class="bi bi-arrow-right"></i></button>
+    </div>
+  </form>
+</div>
+{% endblock %}

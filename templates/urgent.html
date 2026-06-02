@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block title %}Urgent{% endblock %}
+{% block body %}
+<h2 class="mb-4 text-warning"><i class="bi bi-exclamation-triangle-fill"></i> Urgent</h2>
+<p class="text-muted">Emails that need action in the next 24–48 hours.</p>
+<div class="list-group">
+  {% for e in emails %}
+    <a href="{% url 'email_detail' e.gmail_id %}?back=urgent" class="list-group-item list-group-item-action">
+      <div class="d-flex justify-content-between">
+        <strong>{{ e.subject }}</strong>
+        {% if e.event_when %}<span class="badge bg-warning text-dark">{{ e.event_when }}</span>{% endif %}
+      </div>
+      <div class="text-muted small">{{ e.sender }}</div>
+      <div class="small mt-1">{{ e.reason }}</div>
+    </a>
+  {% empty %}<div class="text-muted">No urgent emails right now. 🎉</div>{% endfor %}
+</div>
+{% endblock %}

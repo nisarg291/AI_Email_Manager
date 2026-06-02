@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% block title %}Background · Onboarding{% endblock %}
+{% block topbar_title %}Get started{% endblock %}
+{% block body %}
+<div class="wizard-head">
+  <div class="wizard-step"><span class="dot"></span>Step {{ step }} of 3 · Background</div>
+  <h1 class="wizard-title">A little more context</h1>
+  <p class="wizard-sub">All fields are optional — fill what you'd like the AI to know about you.</p>
+</div>
+
+<div class="card-modern" style="max-width:820px;margin:0 auto">
+  <form method="post" class="row g-3">{% csrf_token %}
+    <div class="col-md-6"><label class="form-label">Education</label>{{ form.education }}</div>
+    <div class="col-md-6"><label class="form-label">Experience</label>{{ form.experience }}</div>
+    <div class="col-md-6"><label class="form-label">Skills & interests</label>{{ form.skills_interests }}</div>
+    <div class="col-md-6"><label class="form-label">Target roles <small>(if job-seeking)</small></label>{{ form.target_roles }}</div>
+    <div class="col-md-6"><label class="form-label">Industries of interest</label>{{ form.industries }}</div>
+    <div class="col-md-6"><label class="form-label">Location</label>{{ form.location }}</div>
+    <div class="col-12"><label class="form-label">Anything else AI should know?</label>{{ form.additional_context }}</div>
+    <div class="col-12"><label class="form-label">Block these senders <small>(one email or domain per line — auto-trashed)</small></label>{{ form.blocked_senders }}</div>
+
+    <div class="col-12 d-flex justify-content-between mt-3 pt-3" style="border-top:1px solid var(--border)">
+      <a class="btn btn-outline-secondary" href="{% url 'onboarding_step1' %}"><i class="bi bi-arrow-left"></i> Back</a>
+      <button class="btn btn-primary px-4">Continue <i class="bi bi-arrow-right"></i></button>
+    </div>
+  </form>
+</div>
+{% endblock %}

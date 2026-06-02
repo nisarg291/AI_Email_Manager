@@ -1,0 +1,67 @@
+
+Replace with:
+
+{% extends "base.html" %}{% block title %}Categories · Onboarding{% endblock %}
+{% block topbar_title %}Get started{% endblock %}
+{% block body %}
+<div class="wizard-head">
+  <div class="wizard-step"><span class="dot"></span>Step {{ step }} of 3 · Categorize</div>
+  <h1 class="wizard-title">Personalized for you</h1>
+  <p class="wizard-sub">
+    AI picked the <strong>{{ total_relevant }} categories</strong> most relevant to your profile.
+    Adjust their priority — the rest will use smart defaults.
+  </p>
+</div>
+
+<div class="d-flex justify-content-center gap-3 mb-4 flex-wrap small text-muted">
+  <span><span class="badge-tier tier-critical">🔥 Critical</span> always notify</span>
+  <span><span class="badge-tier tier-important">⭐ Important</span> stay in inbox</span>
+  <span><span class="badge-tier tier-normal">📌 Normal</span> just label</span>
+  <span><span class="badge-tier tier-low">📥 Low</span> file away</span>
+  <span><span class="badge-tier tier-ignore">🗑️ Ignore</span> auto-trash</span>
+</div>
+
+<form method="post" style="max-width:900px;margin:0 auto">{% csrf_token %}
+  {% for group, cats in cat_groups.items %}
+    <div class="cat-group-title">{{ group }}</div>
+    {% for item in cats %}
+      <input type="hidden" name="shown_cat_ids" value="{{ item.obj.id }}">
+      <div class="cat-card">
+        <div class="cat-card-head">
+          <div>
+            <div class="cat-name">{{ item.obj.name }} <span class="badge-cat ms-1">{{ item.obj.short_label }}</span></div>
+            <div class="cat-desc">{{ item.obj.description }}</div>
+          </div>
+        </div>
+        <div class="tier-pills">
+          <label class="tier-pill {% if item.tier == 'critical' %}selected crit{% endif %}"><input type="radio" name="tier_{{ item.obj.id }}" value="critical" {% if item.tier == 'critical' %}checked{% endif %}>🔥 Critical</label>
+          <label class="tier-pill {% if item.tier == 'important' %}selected imp{% endif %}"><input type="radio" name="tier_{{ item.obj.id }}" value="important" {% if item.tier == 'important' %}checked{% endif %}>⭐ Important</label>
+          <label class="tier-pill {% if item.tier == 'normal' %}selected norm{% endif %}"><input type="radio" name="tier_{{ item.obj.id }}" value="normal" {% if item.tier == 'normal' %}checked{% endif %}>📌 Normal</label>
+          <label class="tier-pill {% if item.tier == 'low' %}selected low{% endif %}"><input type="radio" name="tier_{{ item.obj.id }}" value="low" {% if item.tier == 'low' %}checked{% endif %}>📥 Low</label>
+          <label class="tier-pill {% if item.tier == 'ignore' %}selected ign{% endif %}"><input type="radio" name="tier_{{ item.obj.id }}" value="ignore" {% if item.tier == 'ignore' %}checked{% endif %}>🗑️ Ignore</label>
+        </div>
+      </div>
+    {% endfor %}
+  {% endfor %}
+
+  <div class="d-flex justify-content-between my-4 pt-3" style="border-top:1px solid var(--border)">
+    <a class="btn btn-outline-secondary" href="{% url 'onboarding_step2' %}"><i class="bi bi-arrow-left"></i> Back</a>
+    <button class="btn btn-primary px-4">Finish & Go to Dashboard <i class="bi bi-check2"></i></button>
+  </div>
+
+  <p class="text-center text-muted small mb-4">
+    💡 You can edit all {{ EmailCategory.objects.count|default:"150+" }} categories anytime from <strong>Settings → Categories</strong>.
+  </p>
+</form>
+
+<script>
+document.querySelectorAll('.tier-pill input').forEach(input => {
+  input.addEventListener('change', e => {
+    const group = e.target.closest('.tier-pills');
+    const m = {critical:'crit',important:'imp',normal:'norm',low:'low',ignore:'ign'};
+    group.querySelectorAll('.tier-pill').forEach(p => p.classList.remove('selected','crit','imp','norm','low','ign'));
+    e.target.closest('.tier-pill').classList.add('selected', m[e.target.value]);
+  });
+});
+</script>
+{% endblock %}

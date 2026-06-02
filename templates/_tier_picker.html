@@ -1,0 +1,78 @@
+{# Reusable category tier picker. Expects `cat_groups` in context. #}
+
+<div class="d-flex justify-content-center gap-3 mb-4 flex-wrap small text-muted">
+  <span><span class="badge-tier tier-critical">🔥 Critical</span> always notify</span>
+  <span><span class="badge-tier tier-important">⭐ Important</span> stay in inbox</span>
+  <span><span class="badge-tier tier-normal">📌 Normal</span> just label</span>
+  <span><span class="badge-tier tier-low">📥 Low</span> file away</span>
+  <span><span class="badge-tier tier-ignore">🗑️ Ignore</span> auto-trash</span>
+</div>
+
+{% for group, cats in cat_groups.items %}
+  <div class="cat-group-title">{{ group }}</div>
+
+  {% for item in cats %}
+    <div class="cat-card">
+      <div class="cat-card-head">
+        <div>
+          <div class="cat-name">
+            {{ item.obj.name }}
+            <span class="badge-cat ms-1">{{ item.obj.short_label }}</span>
+          </div>
+          <div class="cat-desc">{{ item.obj.description }}</div>
+        </div>
+      </div>
+
+      <div class="tier-pills">
+        <label class="tier-pill {% if item.tier == 'critical' %}selected crit{% endif %}">
+          <input type="radio" name="tier_{{ item.obj.id }}" value="critical"
+                 {% if item.tier == 'critical' %}checked{% endif %}>
+          🔥 Critical
+        </label>
+
+        <label class="tier-pill {% if item.tier == 'important' %}selected imp{% endif %}">
+          <input type="radio" name="tier_{{ item.obj.id }}" value="important"
+                 {% if item.tier == 'important' %}checked{% endif %}>
+          ⭐ Important
+        </label>
+
+        <label class="tier-pill {% if item.tier == 'normal' %}selected norm{% endif %}">
+          <input type="radio" name="tier_{{ item.obj.id }}" value="normal"
+                 {% if item.tier == 'normal' %}checked{% endif %}>
+          📌 Normal
+        </label>
+
+        <label class="tier-pill {% if item.tier == 'low' %}selected low{% endif %}">
+          <input type="radio" name="tier_{{ item.obj.id }}" value="low"
+                 {% if item.tier == 'low' %}checked{% endif %}>
+          📥 Low
+        </label>
+
+        <label class="tier-pill {% if item.tier == 'ignore' %}selected ign{% endif %}">
+          <input type="radio" name="tier_{{ item.obj.id }}" value="ignore"
+                 {% if item.tier == 'ignore' %}checked{% endif %}>
+          🗑️ Ignore
+        </label>
+      </div>
+    </div>
+  {% endfor %}
+{% endfor %}
+
+<script>
+  document.querySelectorAll('.tier-pill input').forEach(input => {
+    input.addEventListener('change', e => {
+      const group = e.target.closest('.tier-pills');
+      const classMap = {
+        critical:  'crit',
+        important: 'imp',
+        normal:    'norm',
+        low:       'low',
+        ignore:    'ign'
+      };
+      group.querySelectorAll('.tier-pill').forEach(p =>
+        p.classList.remove('selected', 'crit', 'imp', 'norm', 'low', 'ign')
+      );
+      e.target.closest('.tier-pill').classList.add('selected', classMap[e.target.value]);
+    });
+  });
+</script>

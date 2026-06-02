@@ -1,0 +1,54 @@
+{% extends "base.html" %}{% block title %}{{ email.subject }}{% endblock %}
+{% block body %}
+<div class="mb-3">
+  <a href="{% url back_to %}" class="text-decoration-none">
+    <i class="bi bi-arrow-left"></i> Back
+  </a>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <h4 class="mb-2">{{ email.subject }}</h4>
+    <div class="text-muted small mb-3">
+      <div><strong>From:</strong> {{ email.from }}</div>
+      {% if email.to %}<div><strong>To:</strong> {{ email.to }}</div>{% endif %}
+      {% if email.date %}<div><strong>Date:</strong> {{ email.date|date:"D, d M Y H:i" }}</div>{% endif %}
+      {% if email.in_trash %}<span class="badge bg-danger mt-2">In Trash</span>{% endif %}
+    </div>
+
+    {% if ce %}
+      <div class="alert alert-light border small">
+        <div><strong>AI category:</strong>
+          {% if ce.category %}{{ ce.category.group }} / {{ ce.category.name }}{% else %}—{% endif %}
+        </div>
+        <div><strong>Importance:</strong> {{ ce.importance }}/5</div>
+        <div><strong>Reason:</strong> {{ ce.reason }}</div>
+        {% if ce.is_event %}<div><strong>Event:</strong> {{ ce.event_when }}</div>{% endif %}
+      </div>
+    {% endif %}
+
+    <hr>
+
+    <div class="email-body-wrap border rounded p-3" style="background:#fff">
+      {% if email.body_kind == 'html' %}
+        <iframe sandbox="allow-same-origin" srcdoc="{{ email.body }}"
+                style="width:100%; min-height:500px; border:0"></iframe>
+      {% else %}
+        <pre style="white-space:pre-wrap; font-family: inherit; margin:0">{{ email.body }}</pre>
+      {% endif %}
+    </div>
+
+    <div class="mt-3 d-flex gap-2">
+      {% if email.in_trash %}
+        <a href="{% url 'trash_restore' email.id %}" class="btn btn-outline-success btn-sm">
+          <i class="bi bi-arrow-counterclockwise"></i> Restore to Inbox
+        </a>
+        <a href="{% url 'trash_delete' email.id %}" class="btn btn-outline-danger btn-sm"
+           onclick="return confirm('Delete permanently?');">
+          <i class="bi bi-x-lg"></i> Delete permanently
+        </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

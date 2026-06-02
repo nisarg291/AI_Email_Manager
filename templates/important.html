@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% block title %}Important{% endblock %}
+{% block body %}
+<h2 class="mb-4">Important & Upcoming</h2>
+
+<h5 class="text-primary"><i class="bi bi-calendar-event"></i> Events / Meetings / Deadlines</h5>
+<div class="list-group mb-4">
+  {% for e in events %}
+    <a href="{% url 'email_detail' e.gmail_id %}?back=important" class="list-group-item list-group-item-action">
+      <div class="d-flex justify-content-between">
+        <strong>{{ e.subject }}</strong>
+        {% if e.event_when %}<span class="badge bg-primary">{{ e.event_when }}</span>{% endif %}
+      </div>
+      <div class="text-muted small">{{ e.sender }}</div>
+      <div class="small mt-1">{{ e.reason }}</div>
+    </a>
+  {% empty %}<div class="text-muted">No upcoming events yet. Run the AI on your inbox.</div>{% endfor %}
+</div>
+
+<h5 class="text-warning"><i class="bi bi-star"></i> Other Important</h5>
+<div class="list-group">
+  {% for e in others %}
+    <a href="{% url 'email_detail' e.gmail_id %}?back=important" class="list-group-item list-group-item-action">
+      <div class="d-flex justify-content-between">
+        <strong>{{ e.subject }}</strong>
+        {% if e.category %}<span class="badge bg-secondary">{{ e.category.name }}</span>{% endif %}
+      </div>
+      <div class="text-muted small">{{ e.sender }}</div>
+      <div class="small mt-1">{{ e.reason }}</div>
+    </a>
+  {% empty %}<div class="text-muted">No important emails yet.</div>{% endfor %}
+</div>
+{% endblock %}

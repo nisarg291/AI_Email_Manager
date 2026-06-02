@@ -1,0 +1,31 @@
+
+{% extends "base.html" %}{% block title %}Profile{% endblock %}
+{% block topbar_title %}Profile{% endblock %}
+{% block body %}
+<div class="d-flex justify-content-between mb-4">
+  <div>
+    <h2 class="fw-bold mb-1">Your profile</h2>
+    <p class="text-muted mb-0">Updating these helps the AI personalize classification.</p>
+  </div>
+</div>
+<form method="post" class="card-modern" style="max-width:900px">{% csrf_token %}
+  <div class="row g-3">
+    <div class="col-md-6"><label class="form-label">Full name</label>{{ f1.full_name }}</div>
+    <div class="col-md-6"><label class="form-label">Role</label>{{ f1.current_role }}</div>
+    <div class="col-md-6"><label class="form-label">Position</label>{{ f1.current_position }}</div>
+    <div class="col-md-6"><label class="form-label">Organization</label>{{ f1.current_organization }}</div>
+    <div class="col-md-6"><label class="form-label">Org domain</label>{{ f1.org_domain }}</div>
+    <div class="col-md-6"><label class="form-label">Email type</label>{{ f1.email_type }}</div>
+    <div class="col-md-6"><label class="form-label">Education</label>{{ f2.education }}</div>
+    <div class="col-md-6"><label class="form-label">Experience</label>{{ f2.experience }}</div>
+    <div class="col-md-6"><label class="form-label">Skills & interests</label>{{ f2.skills_interests }}</div>
+    <div class="col-md-6"><label class="form-label">Target roles</label>{{ f2.target_roles }}</div>
+    <div class="col-md-6"><label class="form-label">Industries</label>{{ f2.industries }}</div>
+    <div class="col-md-6"><label class="form-label">Location</label>{{ f2.location }}</div>
+    <div class="col-12"><label class="form-label">Additional context</label>{{ f2.additional_context }}</div>
+    <div class="col-12"><label class="form-label">Blocked senders</label>{{ f2.blocked_senders }}</div>
+  </div>
+  <button class="btn btn-primary mt-3">Save</button>
+  <a href="{% url 'categories' %}" class="btn btn-link">Edit category preferences →</a>
+</form>
+{% endblock %}
