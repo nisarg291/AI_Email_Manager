@@ -592,8 +592,17 @@ def email_detail(request, msg_id):
     try:
         email = services.get_message_full(request.user, msg_id)
     except Exception as exc:
-        messages.error(request, f"Could not load email: {exc}")
-        return redirect("manage_emails")
+        err_str = str(exc)
+        if "404" in err_str or "notFound" in err_str:
+            messages.warning(request, "This email no longer exists in Gmail — it may have been permanently deleted.")
+        elif "401" in err_str or "403" in err_str:
+            messages.error(request, "Access denied. Please reconnect your Gmail account.")
+        else:
+            messages.error(request, "Could not load this email. Please try again later.")
+        back_to = request.GET.get("back", "manage_emails")
+        if back_to not in {"manage_emails", "important", "urgent", "trash", "spam", "starred", "subscriptions"}:
+            back_to = "manage_emails"
+        return redirect(back_to)
     ce = ClassifiedEmail.objects.filter(user=request.user, gmail_id=msg_id).first()
     back_to = request.GET.get("back", "manage_emails")
     if back_to not in {"manage_emails", "important", "urgent", "trash", "spam", "starred", "subscriptions"}:
