@@ -283,14 +283,26 @@ def login_page(request):
 
 
 def google_start(request):
+    import secrets, hashlib, base64
+    # Generate PKCE code verifier & challenge
+    code_verifier = secrets.token_urlsafe(64)
+    code_challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(code_verifier.encode()).digest()
+    ).rstrip(b"=").decode()
+
     flow = _build_flow()
     flow.redirect_uri = settings.GOOGLE_REDIRECT_URI
     auth_url, state = flow.authorization_url(
-        access_type="offline", include_granted_scopes="true", prompt="consent",
+        access_type="offline",
+        include_granted_scopes="true",
+        prompt="consent",
+        code_challenge=code_challenge,
+        code_challenge_method="S256",
     )
     if not request.session.session_key:
         request.session.create()
     request.session["oauth_state"] = state
+    request.session["code_verifier"] = code_verifier
     request.session.modified = True
     request.session.save()
     return redirect(auth_url)
@@ -304,9 +316,17 @@ def google_callback(request):
     if request.GET.get("error"):
         return redirect(f"{reverse('login')}?error={request.GET['error']}")
 
+    code_verifier = request.session.get("code_verifier")
     flow = _build_flow(state=state)
     flow.redirect_uri = settings.GOOGLE_REDIRECT_URI
-    flow.fetch_token(authorization_response=request.build_absolute_uri())
+    # Rebuild the absolute URI, forcing https for the proxy environment
+    auth_response = request.build_absolute_uri()
+    if auth_response.startswith("http://") and not auth_response.startswith("http://localhost"):
+        auth_response = "https://" + auth_response[len("http://"):]
+    fetch_kwargs = {"authorization_response": auth_response}
+    if code_verifier:
+        fetch_kwargs["code_verifier"] = code_verifier
+    flow.fetch_token(**fetch_kwargs)
     creds = flow.credentials
 
     id_info = google_id_token.verify_oauth2_token(

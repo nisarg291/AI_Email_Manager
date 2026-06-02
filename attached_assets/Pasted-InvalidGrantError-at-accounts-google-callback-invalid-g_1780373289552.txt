@@ -1,0 +1,36 @@
+InvalidGrantError at /accounts/google/callback/
+(invalid_grant) Missing code verifier.
+Request Method:	GET
+Request URL:	http://65f00a15-838b-48d1-9191-4b70d15a8b25-00-2gw0zobcb6f4o.picard.replit.dev/accounts/google/callback/?state=ZONG86IKTTFthVlQ4P7ccQfrVmW8Z1&iss=https://accounts.google.com&code=4/0AeoWuM9vDNKRPgRMGKQ32psZgwubtdTY7MO2Y-4O66kkgRChRll3gLe_IwT2oE3ZOEMxSw&scope=email%20profile%20https://mail.google.com/%20https://www.googleapis.com/auth/userinfo.profile%20https://www.googleapis.com/auth/userinfo.email%20openid&authuser=0&prompt=consent
+Django Version:	6.0.5
+Exception Type:	InvalidGrantError
+Exception Value:	
+(invalid_grant) Missing code verifier.
+Exception Location:	/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/oauthlib/oauth2/rfc6749/errors.py, line 398, in raise_from_error
+Raised during:	accounts.views.google_callback
+Python Executable:	/home/runner/workspace/.pythonlibs/bin/python
+Python Version:	3.12.12
+Python Path:	
+['/home/runner/workspace',
+ '/home/runner/workspace',
+ '/nix/store/y50fwh2sha400s38m12psfxpvk2c8w39-sitecustomize/lib/python/site-packages',
+ '/nix/store/3idd141l4qkq2s4b1jqwfahmzf739yyb-python3.12-pip-25.0.1/lib/python3.12/site-packages',
+ '/nix/store/iizfzmqjdfvbyx82gqw92glb5zl6m4my-python3-3.12.12/lib/python312.zip',
+ '/nix/store/iizfzmqjdfvbyx82gqw92glb5zl6m4my-python3-3.12.12/lib/python3.12',
+ '/nix/store/iizfzmqjdfvbyx82gqw92glb5zl6m4my-python3-3.12.12/lib/python3.12/lib-dynload',
+ '/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages',
+ '/nix/store/iizfzmqjdfvbyx82gqw92glb5zl6m4my-python3-3.12.12/lib/python3.12/site-packages',
+ '/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages',
+ '/nix/store/y9isj47l7a4i7ycp7njnbgrv7c1kyziv-python3.12-setuptools-80.9.0/lib/python3.12/site-packages']
+Server time:	Tue, 02 Jun 2026 04:07:56 +0000
+Traceback Switch to copy-and-paste view
+/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/django/core/handlers/exception.py, line 55, in inner
+                response = get_response(request)
+                               ^^^^^^^^^^^^^^^^^^^^^ …
+Local vars
+/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/django/core/handlers/base.py, line 198, in _get_response
+                response = wrapped_callback(request, *callback_args, **callback_kwargs)
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ …
+Local vars
+/home/runner/workspace/accounts/views.py, line 309, in google_callback
+    flow.fetch_token(authorization_response=request.build_absolute_uri())
