@@ -1,30 +1,95 @@
 {% extends "base.html" %}{% block title %}Subscriptions{% endblock %}
+{% block topbar_title %}Subscriptions{% endblock %}
 {% block body %}
-<h2 class="mb-4"><i class="bi bi-rss"></i> Subscriptions</h2>
-<p class="text-muted">Senders that include an unsubscribe link. Block here to auto-trash future messages.</p>
-<div class="card border-0 shadow-sm">
-  <table class="table mb-0">
-    <thead class="table-light"><tr><th>Sender</th><th>Emails</th><th></th></tr></thead>
-    <tbody>
-      {% for r in rows %}
-        <tr>
-          <td><div>{{ r.sender }}</div><div class="text-muted small">{{ r.sender_email }}</div></td>
-          <td>{{ r.count }}</td>
-          <td class="text-end">
-            <a class="btn btn-sm btn-outline-primary" href="{{ r.unsubscribe_url }}" target="_blank" rel="noopener">
+
+<style>
+.sub-header{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+.sub-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.sub-row{display:grid;grid-template-columns:44px 1fr auto;align-items:center;gap:16px;padding:14px 18px;border-bottom:1px solid #f1f5f9;transition:background .15s}
+.sub-row:last-child{border-bottom:none}
+.sub-row:hover{background:#f8fafc}
+.sub-avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;flex-shrink:0;text-transform:uppercase}
+.sub-name{font-weight:600;font-size:.9rem;color:#0f172a;line-height:1.3}
+.sub-email{font-size:.78rem;color:#64748b;margin-top:1px}
+.sub-meta{font-size:.75rem;color:#94a3b8;margin-top:4px}
+.sub-meta span{margin-right:12px}
+.sub-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.badge-blocked{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;font-size:.72rem;padding:3px 10px;border-radius:20px;font-weight:600}
+.btn-unsub{background:#f8fafc;color:#374151;border:1px solid #d1d5db;font-size:.78rem;padding:5px 12px;border-radius:7px;text-decoration:none;transition:all .15s;white-space:nowrap}
+.btn-unsub:hover{background:#e2e8f0;color:#111}
+.btn-block{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;font-size:.78rem;padding:5px 12px;border-radius:7px;text-decoration:none;transition:all .15s;white-space:nowrap}
+.btn-block:hover{background:#fee2e2;color:#b91c1c}
+.btn-unblock{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;font-size:.78rem;padding:5px 12px;border-radius:7px;text-decoration:none;transition:all .15s;white-space:nowrap}
+.btn-unblock:hover{background:#dcfce7;color:#15803d}
+.sub-empty{text-align:center;padding:60px 20px;color:#94a3b8}
+.sub-empty i{font-size:40px;display:block;margin-bottom:12px;opacity:.4}
+.sub-count-pill{display:inline-flex;align-items:center;background:#eff6ff;color:#2563eb;border-radius:20px;padding:1px 8px;font-size:.72rem;font-weight:600}
+</style>
+
+<div class="sub-header">
+  <div>
+    <h4 class="mb-1" style="font-weight:700;color:#0f172a"><i class="bi bi-rss-fill text-warning me-2"></i>Subscriptions</h4>
+    <p class="text-muted small mb-0">Senders detected with an unsubscribe link. Block to auto-trash future emails.</p>
+  </div>
+  {% if rows %}
+    <span class="sub-count-pill"><i class="bi bi-envelope me-1"></i>{{ rows|length }} subscription{{ rows|length|pluralize }}</span>
+  {% endif %}
+</div>
+
+{% if messages %}
+  {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible mb-3" role="alert">
+      {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  {% endfor %}
+{% endif %}
+
+<div class="sub-card">
+  {% if rows %}
+    {% for r in rows %}
+      <div class="sub-row">
+        <div class="sub-avatar">{{ r.sender|slice:":1"|upper }}</div>
+
+        <div>
+          <div class="sub-name">{{ r.sender|truncatechars:50 }}</div>
+          <div class="sub-email">{{ r.sender_email }}</div>
+          <div class="sub-meta">
+            <span><i class="bi bi-envelope"></i> {{ r.count }} email{{ r.count|pluralize }}</span>
+            {% if r.last_received %}
+              <span><i class="bi bi-clock"></i> Last: {{ r.last_received|date:"M d, Y" }}</span>
+            {% endif %}
+            {% if r.sender_email in blocked %}
+              <span class="badge-blocked"><i class="bi bi-slash-circle"></i> Blocked</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="sub-actions">
+          {% if r.unsubscribe_url %}
+            <a class="btn-unsub" href="{{ r.unsubscribe_url }}" target="_blank" rel="noopener noreferrer">
               <i class="bi bi-box-arrow-up-right"></i> Unsubscribe
             </a>
-            {% if r.sender_email in blocked %}
-              <span class="badge bg-secondary">Blocked</span>
-            {% else %}
-              <a class="btn btn-sm btn-outline-danger" href="{% url 'subscription_block' r.sender_email %}">
-                <i class="bi bi-slash-circle"></i> Block
-              </a>
-            {% endif %}
-          </td>
-        </tr>
-      {% empty %}<tr><td colspan="3" class="text-center text-muted py-4">No subscriptions detected yet. Run AI classification first.</td></tr>{% endfor %}
-    </tbody>
-  </table>
+          {% endif %}
+
+          {% if r.sender_email in blocked %}
+            <a class="btn-unblock" href="{% url 'subscription_unblock' r.sender_email %}">
+              <i class="bi bi-check-circle"></i> Unblock
+            </a>
+          {% else %}
+            <a class="btn-block" href="{% url 'subscription_block' r.sender_email %}">
+              <i class="bi bi-slash-circle"></i> Block
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="sub-empty">
+      <i class="bi bi-rss"></i>
+      <strong>No subscriptions detected yet</strong>
+      <p class="small mt-2 mb-0">Run AI classification first. Emails with unsubscribe links will appear here.</p>
+    </div>
+  {% endif %}
 </div>
+
 {% endblock %}

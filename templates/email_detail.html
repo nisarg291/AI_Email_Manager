@@ -1,34 +1,70 @@
 {% extends "base.html" %}{% block title %}{{ email.subject }}{% endblock %}
 {% block body %}
-<div class="mb-3">
-  <a href="{% url back_to %}" class="text-decoration-none">
-    <i class="bi bi-arrow-left"></i> Back
-  </a>
-</div>
 
-<div class="card border-0 shadow-sm">
-  <div class="card-body">
-    <h4 class="mb-2">{{ email.subject }}</h4>
-    <div class="text-muted small mb-3">
-      <div><strong>From:</strong> {{ email.from }}</div>
-      {% if email.to %}<div><strong>To:</strong> {{ email.to }}</div>{% endif %}
-      {% if email.date %}<div><strong>Date:</strong> {{ email.date|date:"D, d M Y H:i" }}</div>{% endif %}
-      {% if email.in_trash %}<span class="badge bg-danger mt-2">In Trash</span>{% endif %}
+<style>
+.detail-back{display:inline-flex;align-items:center;gap:6px;color:#6366f1;font-size:.87rem;text-decoration:none;font-weight:500;margin-bottom:16px}
+.detail-back:hover{color:#4f46e5}
+.detail-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.detail-header{padding:22px 24px 18px;border-bottom:1px solid #f1f5f9}
+.detail-subject{font-size:1.2rem;font-weight:700;color:#0f172a;margin-bottom:10px;line-height:1.35}
+.detail-meta{display:flex;flex-direction:column;gap:3px}
+.detail-meta-row{font-size:.82rem;color:#64748b}
+.detail-meta-row strong{color:#374151;margin-right:4px}
+.detail-ai-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:12px 16px;font-size:.82rem;margin:16px 24px 0;display:flex;flex-wrap:wrap;gap:16px}
+.detail-ai-item strong{color:#374151;display:block;margin-bottom:1px;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em}
+.detail-body{padding:20px 24px}
+.detail-actions{padding:16px 24px;border-top:1px solid #f1f5f9;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fafbfc}
+.btn-act{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:8px;font-size:.83rem;font-weight:500;border:none;cursor:pointer;text-decoration:none;transition:all .15s}
+.btn-act-trash{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+.btn-act-trash:hover{background:#fee2e2;color:#b91c1c}
+.btn-act-delete{background:#fff;color:#dc2626;border:1px solid #fecaca}
+.btn-act-delete:hover{background:#fef2f2;color:#b91c1c}
+.btn-act-restore{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}
+.btn-act-restore:hover{background:#dcfce7;color:#15803d}
+.badge-trash{display:inline-flex;align-items:center;gap:5px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:20px;padding:3px 10px;font-size:.75rem;font-weight:600}
+</style>
+
+<a href="{% url back_to %}" class="detail-back"><i class="bi bi-arrow-left"></i> Back</a>
+
+<div class="detail-card">
+  <div class="detail-header">
+    <div class="detail-subject">{{ email.subject }}</div>
+    <div class="detail-meta">
+      <div class="detail-meta-row"><strong>From:</strong>{{ email.from }}</div>
+      {% if email.to %}<div class="detail-meta-row"><strong>To:</strong>{{ email.to }}</div>{% endif %}
+      {% if email.date %}<div class="detail-meta-row"><strong>Date:</strong>{{ email.date|date:"D, d M Y H:i" }}</div>{% endif %}
     </div>
-
-    {% if ce %}
-      <div class="alert alert-light border small">
-        <div><strong>AI category:</strong>
-          {% if ce.category %}{{ ce.category.group }} / {{ ce.category.name }}{% else %}—{% endif %}
-        </div>
-        <div><strong>Importance:</strong> {{ ce.importance }}/5</div>
-        <div><strong>Reason:</strong> {{ ce.reason }}</div>
-        {% if ce.is_event %}<div><strong>Event:</strong> {{ ce.event_when }}</div>{% endif %}
-      </div>
+    {% if email.in_trash %}
+      <span class="badge-trash mt-2"><i class="bi bi-trash"></i> In Trash</span>
     {% endif %}
+  </div>
 
-    <hr>
+  {% if ce %}
+    <div class="detail-ai-box">
+      <div class="detail-ai-item">
+        <strong>AI Category</strong>
+        {% if ce.category %}{{ ce.category.group }} / {{ ce.category.name }}{% else %}—{% endif %}
+      </div>
+      <div class="detail-ai-item">
+        <strong>Importance</strong>
+        {{ ce.importance }}/5{% if ce.is_urgent %} 🔥 Urgent{% endif %}
+      </div>
+      {% if ce.reason %}
+        <div class="detail-ai-item" style="flex:1;min-width:200px">
+          <strong>AI Reason</strong>
+          {{ ce.reason|truncatechars:140 }}
+        </div>
+      {% endif %}
+      {% if ce.is_event %}
+        <div class="detail-ai-item">
+          <strong>Event</strong>
+          {{ ce.event_when }}
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
 
+  <div class="detail-body">
     <div class="email-body-wrap border rounded p-3" style="background:#fff">
       {% if email.body_kind == 'html' %}
         <iframe sandbox="allow-same-origin" srcdoc="{{ email.body }}"
@@ -37,18 +73,48 @@
         <pre style="white-space:pre-wrap; font-family: inherit; margin:0">{{ email.body }}</pre>
       {% endif %}
     </div>
+  </div>
 
-    <div class="mt-3 d-flex gap-2">
-      {% if email.in_trash %}
-        <a href="{% url 'trash_restore' email.id %}" class="btn btn-outline-success btn-sm">
+  <div class="detail-actions">
+    {% if email.in_trash %}
+      <form method="post" action="{% url 'trash_restore' email.id %}">
+        {% csrf_token %}
+        <button type="submit" class="btn-act btn-act-restore">
           <i class="bi bi-arrow-counterclockwise"></i> Restore to Inbox
-        </a>
-        <a href="{% url 'trash_delete' email.id %}" class="btn btn-outline-danger btn-sm"
-           onclick="return confirm('Delete permanently?');">
-          <i class="bi bi-x-lg"></i> Delete permanently
-        </a>
-      {% endif %}
-    </div>
+        </button>
+      </form>
+      <form method="post" action="{% url 'email_delete_action' email.id %}"
+            onsubmit="return confirm('Permanently delete this email? This cannot be undone.')">
+        {% csrf_token %}
+        <input type="hidden" name="back" value="{{ back_to }}">
+        <button type="submit" class="btn-act btn-act-delete">
+          <i class="bi bi-x-lg"></i> Delete Permanently
+        </button>
+      </form>
+    {% else %}
+      <form method="post" action="{% url 'email_trash_action' email.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="back" value="{{ back_to }}">
+        <button type="submit" class="btn-act btn-act-trash">
+          <i class="bi bi-trash"></i> Move to Trash
+        </button>
+      </form>
+      <form method="post" action="{% url 'email_delete_action' email.id %}"
+            onsubmit="return confirm('Permanently delete this email? This cannot be undone.')">
+        {% csrf_token %}
+        <input type="hidden" name="back" value="{{ back_to }}">
+        <button type="submit" class="btn-act btn-act-delete">
+          <i class="bi bi-x-lg"></i> Delete Permanently
+        </button>
+      </form>
+    {% endif %}
+
+    {% if ce and ce.unsubscribe_url %}
+      <a href="{{ ce.unsubscribe_url }}" target="_blank" rel="noopener" class="btn-act" style="background:#f8fafc;color:#374151;border:1px solid #d1d5db">
+        <i class="bi bi-box-arrow-up-right"></i> Unsubscribe
+      </a>
+    {% endif %}
   </div>
 </div>
+
 {% endblock %}

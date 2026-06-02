@@ -2,6 +2,32 @@
 {% block topbar_title %}Manage Emails{% endblock %}
 {% block body %}
 
+<style>
+/* ── Bulk-action floating bar ── */
+#bulk-bar{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
+  background:#1e293b;color:#fff;border-radius:14px;padding:12px 20px;
+  display:flex;align-items:center;gap:14px;box-shadow:0 8px 30px rgba(0,0,0,.25);
+  transition:transform .25s cubic-bezier(.34,1.56,.64,1);z-index:1050;white-space:nowrap
+}
+#bulk-bar.show{transform:translateX(-50%) translateY(0)}
+#bulk-bar-count{font-size:.85rem;font-weight:600;opacity:.8}
+.bulk-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 15px;border-radius:8px;
+  font-size:.82rem;font-weight:600;border:none;cursor:pointer;transition:all .15s}
+.bulk-btn-trash{background:#ef4444;color:#fff}
+.bulk-btn-trash:hover{background:#dc2626}
+.bulk-btn-delete{background:transparent;color:#fca5a5;border:1px solid #7f1d1d}
+.bulk-btn-delete:hover{background:#7f1d1d;color:#fff}
+.bulk-btn-cancel{background:transparent;color:#94a3b8;font-size:.78rem;padding:4px 8px;border:none;cursor:pointer}
+.bulk-btn-cancel:hover{color:#e2e8f0}
+/* ── Checkbox col ── */
+.chk-col{width:42px;padding-left:14px!important;padding-right:0!important}
+.chk-col input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:#6366f1}
+.email-row .chk-col{vertical-align:middle}
+/* stop row-click when clicking checkbox cell */
+.chk-cell{display:flex;align-items:center;justify-content:center;height:100%;padding:0 4px}
+</style>
+
 {% if needs_reauth %}
 <div class="alert-modern mb-3" style="background:#fef3c7;color:#92400e;border-color:#f59e0b">
   <i class="bi bi-exclamation-triangle-fill" style="font-size:18px;color:#f59e0b"></i>
@@ -12,6 +38,14 @@
     </a>
   </div>
 </div>
+{% endif %}
+
+{% if messages %}
+  {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible mb-3" role="alert">
+      {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  {% endfor %}
 {% endif %}
 
 {% if active_job %}
@@ -106,57 +140,73 @@
   <a href="{% url 'manage_emails' %}" class="btn btn-link btn-sm">Reset</a>
 </form>
 
-<div class="card-modern p-0">
-  <table class="email-table">
-    <thead>
-      <tr>
-        <th>From / Subject</th>
-        <th>Category</th>
-        <th>Importance</th>
-        <th>Status</th>
-        <th>When</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for e in page %}
-      <tr class="email-row {% if e.action_taken == 'trashed' %}trashed{% endif %}"
-          onclick="window.location='{% url 'email_detail' e.gmail_id %}?back=manage_emails'">
-        <td>
-          <div class="sender text-truncate" style="max-width:360px">{{ e.sender }}</div>
-          <div class="subject text-truncate" style="max-width:360px">{{ e.subject }}</div>
-        </td>
-        <td>
-          {% if e.custom_category %}
-            <span class="badge-cat" style="background:#7c3aed22;color:#7c3aed">⚡ {{ e.custom_category.name }}</span>
-          {% elif e.category %}
-            <span class="badge-cat">{{ e.category.short_label }}</span>
-          {% else %}
-            <span class="badge-cat" style="background:#f1f5f9;color:#64748b">Other</span>
-          {% endif %}
-        </td>
-        <td>
-          {% if e.is_urgent %}<span class="badge-tier tier-critical">🔥 Urgent</span>
-          {% elif e.importance >= 5 %}<span class="badge-tier tier-critical">Critical</span>
-          {% elif e.importance == 4 %}<span class="badge-tier tier-important">High</span>
-          {% elif e.importance == 3 %}<span class="badge-tier tier-normal">Normal</span>
-          {% elif e.importance == 2 %}<span class="badge-tier tier-low">Low</span>
-          {% else %}<span class="badge-tier tier-ignore">Junk</span>{% endif %}
-        </td>
-        <td>
-          {% if e.action_taken == 'trashed' %}<span class="text-danger small"><i class="bi bi-trash"></i> Trashed</span>
-          {% elif e.action_taken == 'archived' %}<span class="text-secondary small"><i class="bi bi-archive"></i> Archived</span>
-          {% else %}<span class="text-success small"><i class="bi bi-check2"></i> Labeled</span>{% endif %}
-        </td>
-        <td class="text-muted small">{{ e.received_at|date:"M d, H:i" }}</td>
-      </tr>
-    {% empty %}
-      <tr><td colspan="5" class="text-center text-muted py-5">
-        No emails yet. Click a scan button above to classify emails from your inbox.
-      </td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
+<!-- Bulk action form wraps the email table -->
+<form id="bulk-form" method="post" action="{% url 'bulk_action' %}">
+  {% csrf_token %}
+  <input type="hidden" name="back" value="manage_emails">
+  <input type="hidden" name="action" id="bulk-action-input" value="">
+
+  <div class="card-modern p-0">
+    <table class="email-table">
+      <thead>
+        <tr>
+          <th class="chk-col">
+            <input type="checkbox" id="chk-all" title="Select all on this page">
+          </th>
+          <th>From / Subject</th>
+          <th>Category</th>
+          <th>Importance</th>
+          <th>Status</th>
+          <th>When</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for e in page %}
+        <tr class="email-row {% if e.action_taken == 'trashed' %}trashed{% endif %}"
+            data-href="{% url 'email_detail' e.gmail_id %}?back=manage_emails">
+          <td class="chk-col" onclick="event.stopPropagation()">
+            <div class="chk-cell">
+              <input type="checkbox" name="gmail_ids" value="{{ e.gmail_id }}"
+                     class="row-chk" onclick="event.stopPropagation()">
+            </div>
+          </td>
+          <td>
+            <div class="sender text-truncate" style="max-width:340px">{{ e.sender }}</div>
+            <div class="subject text-truncate" style="max-width:340px">{{ e.subject }}</div>
+          </td>
+          <td>
+            {% if e.custom_category %}
+              <span class="badge-cat" style="background:#7c3aed22;color:#7c3aed">⚡ {{ e.custom_category.name }}</span>
+            {% elif e.category %}
+              <span class="badge-cat">{{ e.category.short_label }}</span>
+            {% else %}
+              <span class="badge-cat" style="background:#f1f5f9;color:#64748b">Other</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if e.is_urgent %}<span class="badge-tier tier-critical">🔥 Urgent</span>
+            {% elif e.importance >= 5 %}<span class="badge-tier tier-critical">Critical</span>
+            {% elif e.importance == 4 %}<span class="badge-tier tier-important">High</span>
+            {% elif e.importance == 3 %}<span class="badge-tier tier-normal">Normal</span>
+            {% elif e.importance == 2 %}<span class="badge-tier tier-low">Low</span>
+            {% else %}<span class="badge-tier tier-ignore">Junk</span>{% endif %}
+          </td>
+          <td>
+            {% if e.action_taken == 'trashed' %}<span class="text-danger small"><i class="bi bi-trash"></i> Trashed</span>
+            {% elif e.action_taken == 'archived' %}<span class="text-secondary small"><i class="bi bi-archive"></i> Archived</span>
+            {% else %}<span class="text-success small"><i class="bi bi-check2"></i> Labeled</span>{% endif %}
+          </td>
+          <td class="text-muted small">{{ e.received_at|date:"M d, H:i" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-5">
+          No emails yet. Click a scan button above to classify emails from your inbox.
+        </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</form>
 
 {% if page.paginator.num_pages > 1 %}
 <nav class="mt-3 d-flex justify-content-center">
@@ -167,6 +217,65 @@
   </ul>
 </nav>
 {% endif %}
+
+<!-- Floating bulk-action bar -->
+<div id="bulk-bar">
+  <span id="bulk-bar-count">0 selected</span>
+  <button type="button" class="bulk-btn bulk-btn-trash" onclick="submitBulk('trash')">
+    <i class="bi bi-trash"></i> Move to Trash
+  </button>
+  <button type="button" class="bulk-btn bulk-btn-delete"
+          onclick="if(confirm('Permanently delete selected emails? This cannot be undone.')) submitBulk('delete_permanent')">
+    <i class="bi bi-x-lg"></i> Delete Permanently
+  </button>
+  <button type="button" class="bulk-btn-cancel" onclick="clearSelection()">✕ Cancel</button>
+</div>
+
+<script>
+(function(){
+  const chkAll   = document.getElementById('chk-all');
+  const rowChks  = () => document.querySelectorAll('.row-chk');
+  const bulkBar  = document.getElementById('bulk-bar');
+  const countLbl = document.getElementById('bulk-bar-count');
+
+  // Row click → navigate (not on checkbox column)
+  document.querySelectorAll('.email-row').forEach(row => {
+    row.addEventListener('click', e => {
+      if(e.target.closest('.chk-col')) return;
+      window.location = row.dataset.href;
+    });
+  });
+
+  function updateBar(){
+    const checked = document.querySelectorAll('.row-chk:checked').length;
+    countLbl.textContent = checked + ' selected';
+    if(checked > 0) bulkBar.classList.add('show');
+    else            bulkBar.classList.remove('show');
+    chkAll.indeterminate = checked > 0 && checked < rowChks().length;
+    chkAll.checked = checked > 0 && checked === rowChks().length;
+  }
+
+  chkAll.addEventListener('change', () => {
+    rowChks().forEach(c => c.checked = chkAll.checked);
+    updateBar();
+  });
+
+  document.addEventListener('change', e => {
+    if(e.target.classList.contains('row-chk')) updateBar();
+  });
+
+  window.submitBulk = function(action){
+    document.getElementById('bulk-action-input').value = action;
+    document.getElementById('bulk-form').submit();
+  };
+
+  window.clearSelection = function(){
+    rowChks().forEach(c => c.checked = false);
+    chkAll.checked = false;
+    bulkBar.classList.remove('show');
+  };
+})();
+</script>
 
 {% if active_job and active_job.status != "done" and active_job.status != "error" %}
 <script>

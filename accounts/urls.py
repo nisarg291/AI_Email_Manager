@@ -16,7 +16,8 @@ urlpatterns = [
     path("important/",        views.important_view,  name="important"),
 
     path("subscriptions/",    views.subscriptions_view,           name="subscriptions"),
-    path("subscriptions/block/<path:sender_email>/", views.subscription_block, name="subscription_block"),
+    path("subscriptions/block/<path:sender_email>/",   views.subscription_block,   name="subscription_block"),
+    path("subscriptions/unblock/<path:sender_email>/", views.subscription_unblock, name="subscription_unblock"),
 
     path("spam/",             views.spam_view,       name="spam"),
     path("starred/",          views.starred_view,    name="starred"),
@@ -26,7 +27,10 @@ urlpatterns = [
     path("trash/<str:msg_id>/restore/", views.trash_restore, name="trash_restore"),
     path("trash/<str:msg_id>/delete/",  views.trash_delete,  name="trash_delete"),
 
-    path("email/<str:msg_id>/",         views.email_detail,  name="email_detail"),
+    path("email/<str:msg_id>/",               views.email_detail,        name="email_detail"),
+    path("email/<str:msg_id>/trash/",         views.email_trash_action,  name="email_trash_action"),
+    path("email/<str:msg_id>/delete/",        views.email_delete_action, name="email_delete_action"),
+    path("emails/bulk/",                      views.bulk_action,         name="bulk_action"),
     path("onboarding/step1/", views.onboarding_step1, name="onboarding_step1"),
     path("onboarding/step2/", views.onboarding_step2, name="onboarding_step2"),
     path("onboarding/step3/", views.onboarding_step3, name="onboarding_step3"),

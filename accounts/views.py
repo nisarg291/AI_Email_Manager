@@ -380,7 +380,7 @@ def logout_view(request):
     logout(request)
     return redirect("login")
 
-from django.db.models import Count
+from django.db.models import Count, Max
 from .tasks import classify_for_user
 
 
@@ -533,13 +533,25 @@ def subscriptions_view(request):
     rows = (ClassifiedEmail.objects.filter(user=request.user)
             .exclude(unsubscribe_url="")
             .values("sender", "sender_email", "unsubscribe_url")
-            .annotate(count=Count("id"))
+            .annotate(count=Count("id"), last_received=Max("received_at"))
             .order_by("-count")[:100])
     _sub_profile, _ = UserProfile.objects.get_or_create(
         user=request.user, defaults={"full_name": request.user.get_full_name()}
     )
     return render(request, "subscriptions.html", {"rows": rows,
                                                   "blocked": _sub_profile.blocked_set()})
+
+
+@login_required
+def subscription_unblock(request, sender_email):
+    profile, _ = UserProfile.objects.get_or_create(
+        user=request.user, defaults={"full_name": request.user.get_full_name()}
+    )
+    lines = [l.strip() for l in profile.blocked_senders.splitlines() if l.strip().lower() != sender_email.lower()]
+    profile.blocked_senders = "\n".join(lines)
+    profile.save(update_fields=["blocked_senders"])
+    messages.success(request, f"{sender_email} unblocked.")
+    return redirect("subscriptions")
 
 
 @login_required
@@ -567,6 +579,73 @@ def email_detail(request, msg_id):
     if back_to not in {"manage_emails", "important", "urgent", "trash", "spam", "starred", "subscriptions"}:
         back_to = "manage_emails"
     return render(request, "email_detail.html", {"email": email, "ce": ce, "back_to": back_to})
+
+
+_BULK_BACK_ALLOWED = {"manage_emails", "important", "urgent", "starred"}
+
+@login_required
+def bulk_action(request):
+    if request.method != "POST":
+        return redirect("manage_emails")
+    action = request.POST.get("action")
+    ids = request.POST.getlist("gmail_ids")
+    back_to = request.POST.get("back", "manage_emails")
+    if back_to not in _BULK_BACK_ALLOWED:
+        back_to = "manage_emails"
+    if not ids or action not in ("trash", "delete_permanent"):
+        messages.warning(request, "No emails selected.")
+        return redirect(back_to)
+    try:
+        svc = services.gmail_service(request.user)
+        count = 0
+        for gid in ids:
+            try:
+                if action == "trash":
+                    services.trash_message(svc, gid)
+                    ClassifiedEmail.objects.filter(user=request.user, gmail_id=gid).update(action_taken="trashed")
+                else:
+                    services.delete_message(svc, gid)
+                    ClassifiedEmail.objects.filter(user=request.user, gmail_id=gid).delete()
+                count += 1
+            except Exception:
+                pass
+        verb = "Moved to trash" if action == "trash" else "Permanently deleted"
+        messages.success(request, f"{verb}: {count} email(s).")
+    except Exception as exc:
+        messages.error(request, f"Action failed: {exc}")
+    return redirect(back_to)
+
+
+@login_required
+def email_trash_action(request, msg_id):
+    if request.method != "POST":
+        return redirect("manage_emails")
+    back_to = request.POST.get("back", "manage_emails")
+    if back_to not in {"manage_emails", "important", "urgent", "starred", "trash"}:
+        back_to = "manage_emails"
+    try:
+        services.trash_message(services.gmail_service(request.user), msg_id)
+        ClassifiedEmail.objects.filter(user=request.user, gmail_id=msg_id).update(action_taken="trashed")
+        messages.success(request, "Moved to trash.")
+    except Exception as exc:
+        messages.error(request, f"Failed: {exc}")
+    return redirect(back_to)
+
+
+@login_required
+def email_delete_action(request, msg_id):
+    if request.method != "POST":
+        return redirect("manage_emails")
+    back_to = request.POST.get("back", "manage_emails")
+    if back_to not in {"manage_emails", "important", "urgent", "starred", "trash"}:
+        back_to = "manage_emails"
+    try:
+        services.delete_message(services.gmail_service(request.user), msg_id)
+        ClassifiedEmail.objects.filter(user=request.user, gmail_id=msg_id).delete()
+        messages.success(request, "Permanently deleted.")
+    except Exception as exc:
+        messages.error(request, f"Failed: {exc}")
+    return redirect(back_to)
 
 import json as _json
 from django.http import JsonResponse
