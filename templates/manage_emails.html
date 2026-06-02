@@ -2,6 +2,18 @@
 {% block topbar_title %}Manage Emails{% endblock %}
 {% block body %}
 
+{% if needs_reauth %}
+<div class="alert-modern mb-3" style="background:#fef3c7;color:#92400e;border-color:#f59e0b">
+  <i class="bi bi-exclamation-triangle-fill" style="font-size:18px;color:#f59e0b"></i>
+  <div>
+    <strong>Gmail access required</strong> — Your account was connected before full Gmail permission was granted.
+    <a href="{% url 'google_start' %}" class="btn btn-sm ms-2" style="background:#f59e0b;color:#fff;border:none;padding:3px 14px;border-radius:6px">
+      Re-connect Google →
+    </a>
+  </div>
+</div>
+{% endif %}
+
 {% if active_job %}
 <div id="job-banner" class="alert-modern alert-info mb-3" data-job-id="{{ active_job.pk }}"
      data-status-url="{% url 'job_status' active_job.pk %}">

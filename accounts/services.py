@@ -1196,40 +1196,52 @@ _live_lock = _threading.Lock()
 
 
 def is_live_running(user_id: int) -> bool:
-    return user_id in _live_workers
+    """Check if a live-mode Q schedule exists for this user."""
+    try:
+        from django_q.models import Schedule
+        return Schedule.objects.filter(name=f"live-{user_id}").exists()
+    except Exception:
+        return False
 
 
 def start_live_thread(user_id: int) -> None:
-    with _live_lock:
-        if user_id in _live_workers:
-            return
-        stop_ev = _threading.Event()
-        _live_workers[user_id] = stop_ev
-    t = _threading.Thread(target=_live_worker, args=(user_id, stop_ev),
-                          daemon=True, name=f"live-{user_id}")
-    t.start()
+    """Create a repeating Django Q schedule for live mode (every 3 min)."""
+    try:
+        from django_q.models import Schedule
+        Schedule.objects.get_or_create(
+            name=f"live-{user_id}",
+            defaults={
+                "func": "accounts.services.live_classify_task",
+                "args": str(user_id),
+                "schedule_type": Schedule.MINUTES,
+                "minutes": 3,
+                "repeats": -1,
+            },
+        )
+    except Exception as exc:
+        print(f"[start_live_thread] {exc}")
 
 
 def stop_live_thread(user_id: int) -> None:
-    with _live_lock:
-        ev = _live_workers.pop(user_id, None)
-    if ev:
-        ev.set()
+    """Remove the Django Q live-mode schedule."""
+    try:
+        from django_q.models import Schedule
+        Schedule.objects.filter(name=f"live-{user_id}").delete()
+    except Exception as exc:
+        print(f"[stop_live_thread] {exc}")
 
 
-def _live_worker(user_id: int, stop_ev: _threading.Event) -> None:
+def live_classify_task(user_id: int) -> None:
+    """Django Q task — runs every 3 min when live mode is on."""
     from django.contrib.auth.models import User as _User
-    while not stop_ev.is_set():
-        try:
-            user = _User.objects.select_related("profile", "google_account").get(pk=user_id)
-            if not user.profile.live_classification:
-                break
-            classify_emails(user, scope="live")
-        except Exception as exc:
-            print(f"[live_worker uid={user_id}] {exc}")
-        stop_ev.wait(180)  # poll every 3 minutes
-    with _live_lock:
-        _live_workers.pop(user_id, None)
+    try:
+        user = _User.objects.select_related("profile", "google_account").get(pk=user_id)
+        if not user.profile.live_classification:
+            stop_live_thread(user_id)
+            return
+        classify_emails(user, scope="live")
+    except Exception as exc:
+        print(f"[live_classify_task uid={user_id}] {exc}")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1237,11 +1249,15 @@ def _live_worker(user_id: int, stop_ev: _threading.Event) -> None:
 # ═══════════════════════════════════════════════════════════════
 
 def start_batch_job(user, scope: str) -> "ClassificationJob":
-    """Create a ClassificationJob record and launch a background thread."""
+    """Create a ClassificationJob record and enqueue it in Django Q."""
+    from django_q.tasks import async_task
     job = ClassificationJob.objects.create(user=user, scope=scope, status="pending")
-    t = _threading.Thread(target=_run_job, args=(user.pk, job.pk),
-                          daemon=True, name=f"batch-{user.pk}-{job.pk}")
-    t.start()
+    async_task(
+        "accounts.services._run_job",
+        user.pk, job.pk,
+        task_name=f"classify-{user.pk}-{job.pk}",
+        q_options={"timeout": 1800},
+    )
     return job
 
 

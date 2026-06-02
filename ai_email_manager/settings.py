@@ -145,8 +145,22 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django_q",
     "accounts",
 ]
+
+Q_CLUSTER = {
+    "name": "ai_email_manager",
+    "workers": 4,
+    "recycle": 200,
+    "timeout": 1800,
+    "retry": 1900,
+    "compress": False,
+    "save_limit": 100,
+    "queue_limit": 100,
+    "label": "Django Q",
+    "orm": "default",
+}
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

@@ -261,6 +261,14 @@ def _require_google_account(request):
         return redirect("google_start")
     return None
 
+
+def _has_gmail_scope(user) -> bool:
+    """True if the stored token includes the full Gmail scope."""
+    try:
+        return "mail.google.com" in (user.google_account.scopes or "")
+    except Exception:
+        return False
+
 # ---------- OAuth (unchanged from before) ----------
 def _build_flow(state=None):
     return Flow.from_client_config(
@@ -414,6 +422,9 @@ def dashboard(request):
 
 @login_required
 def toggle_live(request):
+    if not _has_gmail_scope(request.user):
+        messages.error(request, "Please re-connect your Google account to enable Gmail access.")
+        return redirect("manage_emails")
     profile = request.user.profile
     profile.live_classification = not profile.live_classification
     profile.save(update_fields=["live_classification"])
@@ -747,7 +758,7 @@ def categories_view(request):
 
     prefs = {p.category_id: p.tier for p in request.user.category_prefs.all()}
     cat_groups = {}
-    for c in EmailCategory.objects.exclude(slug__in=["urgent","myorg"]).order_by("group","name"):
+    for c in EmailCategory.objects.all().order_by("group", "name"):
         cat_groups.setdefault(c.group, []).append(
             {"obj": c, "tier": prefs.get(c.id, c.default_tier)}
         )
@@ -755,6 +766,7 @@ def categories_view(request):
     return render(request, "categories.html", {
         "cat_groups": cat_groups,
         "custom_cats": custom_cats,
+        "total_cats": EmailCategory.objects.count(),
     })
 
 
@@ -786,6 +798,9 @@ def manage_emails(request):
     if bail: return bail
 
     if request.method == "POST":
+        if not _has_gmail_scope(request.user):
+            messages.error(request, "Your Google account needs to be reconnected for Gmail access.")
+            return redirect("google_start")
         scope = request.POST.get("scope", "latest200")
         try:
             job = services.start_batch_job(request.user, scope)
@@ -828,4 +843,5 @@ def manage_emails(request):
         "current": {"category": cat_id, "importance": imp, "action": action,
                     "q": q, "custom_category": cust_id},
         "active_job": active_job,
+        "needs_reauth": not _has_gmail_scope(request.user),
     })
