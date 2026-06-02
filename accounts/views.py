@@ -1047,12 +1047,19 @@ def manage_emails(request):
     if action in {"labeled","trashed","kept","archived"}: qs = qs.filter(action_taken=action)
     if q: qs = qs.filter(subject__icontains=q) | qs.filter(sender__icontains=q)
 
-    qs   = qs[:1000]
-    page = Paginator(qs, 50).get_page(request.GET.get("page"))
+    total_count = qs.count()
+    qs   = qs[:2000]
+    paginator = Paginator(qs, 50)
+    page = paginator.get_page(request.GET.get("page"))
+
+    # Compute visible page numbers (±2 around current, clamped)
+    curr_pg    = page.number
+    num_pgs    = paginator.num_pages
+    page_range = list(range(max(1, curr_pg - 2), min(num_pgs, curr_pg + 2) + 1))
 
     used_cat_ids = (ClassifiedEmail.objects.filter(user=request.user, category__isnull=False)
                     .values_list("category_id", flat=True).distinct())
-    categories      = EmailCategory.objects.filter(id__in=used_cat_ids).order_by("short_label")
+    categories      = EmailCategory.objects.filter(id__in=used_cat_ids).order_by("name")
     custom_cats     = request.user.custom_categories.all()
     active_job_id   = request.GET.get("job")
     active_job      = None
@@ -1071,6 +1078,9 @@ def manage_emails(request):
                     "q": q, "custom_category": cust_id},
         "active_job": active_job,
         "needs_reauth": not _has_gmail_scope(request.user),
+        "total_count": total_count,
+        "page_range":  page_range,
+        "num_pages":   num_pgs,
     })
 
 
