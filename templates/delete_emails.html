@@ -24,13 +24,6 @@
   <p class="text-muted small mb-0">Permanently remove emails from your Gmail account by age or date range.</p>
 </div>
 
-{% if messages %}
-  {% for msg in messages %}
-    <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible mb-3" role="alert">
-      {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-  {% endfor %}
-{% endif %}
 
 <div class="del-warning">
   <i class="bi bi-exclamation-triangle-fill" style="font-size:18px;flex-shrink:0;margin-top:1px"></i>

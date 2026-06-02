@@ -40,14 +40,6 @@
 </div>
 {% endif %}
 
-{% if messages %}
-  {% for msg in messages %}
-    <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible mb-3" role="alert">
-      {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-  {% endfor %}
-{% endif %}
-
 {% if active_job %}
 <div id="job-banner" class="alert-modern alert-info mb-3" data-job-id="{{ active_job.pk }}"
      data-status-url="{% url 'job_status' active_job.pk %}">

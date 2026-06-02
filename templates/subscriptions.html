@@ -36,13 +36,6 @@
   {% endif %}
 </div>
 
-{% if messages %}
-  {% for msg in messages %}
-    <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible mb-3" role="alert">
-      {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-  {% endfor %}
-{% endif %}
 
 <div class="sub-card">
   {% if rows %}
