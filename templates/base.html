@@ -193,13 +193,18 @@ hr.dropdown-divider{margin:5px 0;border-color:var(--border)}
 
 /* ─── Responsive ─── */
 @media(max-width:768px){
-  .sidebar{transform:translateX(-100%)}
+  .sidebar{
+    transform:translateX(-100%);
+    padding-bottom:calc(120px + env(safe-area-inset-bottom, 0px));
+  }
   .sidebar.open{transform:translateX(0)}
   .sidebar-overlay.open{display:block}
   .main-wrap{margin-left:0}
   .hamburger{display:flex}
   .main{padding:16px}
   .topbar{padding:10px 16px}
+  /* Extra breathing room after the last sidebar item */
+  nav .side-link:last-of-type{margin-bottom:20px}
 }
 </style>
 </head>
