@@ -40,40 +40,11 @@
 </div>
 {% endif %}
 
-{% if active_job %}
-<div id="job-banner" class="alert-modern alert-info mb-3" data-job-id="{{ active_job.pk }}"
-     data-status-url="{% url 'job_status' active_job.pk %}">
-  <i class="bi bi-cpu-fill"></i>
-  <div style="flex:1">
-    <div class="d-flex justify-content-between align-items-center mb-1">
-      <span id="job-label">
-        {% if active_job.status == "done" %}
-          Done — {{ active_job.processed }} processed, {{ active_job.already_done }} already classified.
-        {% elif active_job.status == "error" %}
-          Error: {{ active_job.error_msg }}
-        {% else %}
-          Classifying emails…
-        {% endif %}
-      </span>
-      <span id="job-pct" class="fw-bold text-primary">
-        {% if active_job.status == "done" %}100%
-        {% elif active_job.total > 0 %}{{ active_job.processed }}/{{ active_job.total }}
-        {% else %}Starting…{% endif %}
-      </span>
-    </div>
-    <div class="progress" style="height:6px;border-radius:4px">
-      <div id="job-bar" class="progress-bar bg-primary"
-           style="width:{% if active_job.status == 'done' %}100{% elif active_job.total > 0 %}{{ active_job.processed|floatformat:0 }}{% else %}0{% endif %}%;transition:width .4s"></div>
-    </div>
-  </div>
-</div>
-{% endif %}
-
 <div class="card-modern mb-3">
-  <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
     <div>
-      <h5 class="mb-1">Run AI Classification</h5>
-      <p class="text-muted small mb-0">Emails already processed are skipped. Results appear below when done.</p>
+      <h5 class="mb-1 fw-bold"><i class="bi bi-cpu text-primary me-2"></i>Run AI Classification</h5>
+      <p class="text-muted small mb-0">Select a range — already-classified emails are skipped automatically.</p>
     </div>
     <form method="post" action="{% url 'toggle_live' %}">{% csrf_token %}
       {% if live %}
@@ -82,23 +53,70 @@
           {% if live_running %}<span class="badge bg-white text-success ms-1" style="font-size:10px">●&nbsp;Active</span>{% endif %}
         </button>
       {% else %}
-        <button class="btn btn-outline-success btn-sm"><i class="bi bi-broadcast"></i> Turn on live mode</button>
+        <button class="btn btn-outline-success btn-sm"><i class="bi bi-broadcast"></i> Live mode</button>
       {% endif %}
     </form>
   </div>
 
-  <div class="scope-grid">
-    {% for slug, info in scopes.items %}
-      {% if slug != "live" %}
-        <form method="post">
-          <input type="hidden" name="scope" value="{{ slug }}">{% csrf_token %}
-          <button class="scope-btn w-100" onclick="this.disabled=true;this.querySelector('.scope-label').innerText='Starting…'">
-            <div class="scope-label"><i class="bi bi-magic"></i> {{ info.2 }}</div>
-            <div class="scope-meta">{% if info.1 >= 9999 %}All emails in range{% else %}Up to {{ info.1 }} emails{% endif %}</div>
-          </button>
-        </form>
-      {% endif %}
-    {% endfor %}
+  <!-- Job progress card — shown when a job is running or pending -->
+  {% if active_job and active_job.status != "done" and active_job.status != "error" %}
+  <div id="job-card" class="job-card mb-3"
+       data-job-id="{{ active_job.pk }}"
+       data-status-url="{% url 'job_status' active_job.pk %}">
+    <div class="job-card-title">
+      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#6366f1;animation:scopepulse 1s infinite"></span>
+      AI Classification in progress…
+    </div>
+    <div class="job-card-sub" id="job-sub">
+      {% if active_job.total > 0 %}Processing {{ active_job.processed }} of {{ active_job.total }} emails{% else %}Fetching emails from Gmail…{% endif %}
+    </div>
+    <div class="job-progress-bar-wrap">
+      <div id="job-bar" class="job-progress-bar"
+           style="width:{% if active_job.total > 0 %}{% widthratio active_job.processed active_job.total 100 %}{% else %}5{% endif %}%"></div>
+    </div>
+    <div class="job-progress-info">
+      <span id="job-label">
+        {% if active_job.total > 0 %}{{ active_job.processed }} / {{ active_job.total }} emails{% else %}Starting up…{% endif %}
+      </span>
+      <span id="job-pct">
+        {% if active_job.total > 0 %}{% widthratio active_job.processed active_job.total 100 %}%{% else %}…{% endif %}
+      </span>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Completed job result -->
+  {% if active_job and active_job.status == "done" %}
+  <div class="alert-modern mb-3" style="background:#f0fdf4;border-color:#86efac;color:#166534">
+    <i class="bi bi-check-circle-fill" style="color:#22c55e;font-size:18px"></i>
+    <div>Done — <strong>{{ active_job.processed }}</strong> classified, {{ active_job.already_done }} already done.</div>
+  </div>
+  {% endif %}
+
+  <!-- Scope buttons — hidden while job is actively running -->
+  <div id="scope-grid-wrap" {% if active_job and active_job.status != "done" and active_job.status != "error" %}style="display:none"{% endif %}>
+    <div class="scope-grid" id="scope-grid">
+      {% for slug, info in scopes.items %}
+        {% if slug != "live" %}
+          <form method="post" onsubmit="onScopeClick(this)">
+            <input type="hidden" name="scope" value="{{ slug }}">{% csrf_token %}
+            <button type="submit" class="scope-btn w-100" data-slug="{{ slug }}">
+              <span class="scope-icon">
+                {% if slug == "latest200" %}📬
+                {% elif slug == "week1" %}📅
+                {% elif slug == "week2" %}🗓
+                {% elif slug == "month1" %}📆
+                {% else %}⚡{% endif %}
+              </span>
+              <span class="scope-label">{{ info.2 }}</span>
+              <span class="scope-meta">
+                {% if info.1 >= 9999 %}All emails in range{% else %}Up to {{ info.1 }} emails{% endif %}
+              </span>
+            </button>
+          </form>
+        {% endif %}
+      {% endfor %}
+    </div>
   </div>
 </div>
 
@@ -398,40 +416,64 @@
 })();
 </script>
 
+<script>
+/* ── Scope button click: add loading state, disable siblings ── */
+function onScopeClick(form) {
+  const btn = form.querySelector('.scope-btn');
+  const allBtns = document.querySelectorAll('.scope-btn');
+  allBtns.forEach(b => { b.disabled = true; });
+  btn.classList.add('loading');
+  btn.querySelector('.scope-label').textContent = 'Starting…';
+  btn.querySelector('.scope-meta').textContent  = 'Sending to AI…';
+}
+</script>
+
 {% if active_job and active_job.status != "done" and active_job.status != "error" %}
 <script>
 (function(){
-  const banner  = document.getElementById('job-banner');
-  const label   = document.getElementById('job-label');
-  const pct     = document.getElementById('job-pct');
-  const bar     = document.getElementById('job-bar');
-  const url     = banner.dataset.statusUrl;
+  const card  = document.getElementById('job-card');
+  const sub   = document.getElementById('job-sub');
+  const label = document.getElementById('job-label');
+  const pct   = document.getElementById('job-pct');
+  const bar   = document.getElementById('job-bar');
+  const url   = card.dataset.statusUrl;
+  const grid  = document.getElementById('scope-grid-wrap');
 
   function poll(){
     fetch(url).then(r=>r.json()).then(d=>{
       if(d.status==='done'){
-        label.textContent = `Done — ${d.processed} classified, ${d.already_done} already done.`;
+        sub.textContent   = 'Classification complete!';
+        label.textContent = `${d.processed} classified, ${d.already_done} already done.`;
         pct.textContent   = '100%';
         bar.style.width   = '100%';
-        banner.className  = banner.className.replace('alert-info','alert-success');
-        setTimeout(()=>{ window.location.href = window.location.pathname; }, 1500);
+        card.style.background = 'linear-gradient(135deg,#f0fdf4,#dcfce7)';
+        card.style.borderColor = '#86efac';
+        card.querySelector('.job-card-title span').style.background = '#22c55e';
+        card.querySelector('.job-card-title').childNodes[1].textContent = ' Done — results updated below.';
+        if(grid) grid.style.display = '';
+        setTimeout(()=>{ window.location.href = window.location.pathname; }, 2000);
         return;
       }
       if(d.status==='error'){
-        label.textContent = 'Error: ' + (d.error_msg || 'unknown');
-        banner.className  = banner.className.replace('alert-info','alert-danger');
+        sub.textContent   = 'Error: ' + (d.error_msg || 'Unknown error');
+        pct.textContent   = '';
+        card.style.background   = 'linear-gradient(135deg,#fef2f2,#fff1f1)';
+        card.style.borderColor  = '#fca5a5';
+        if(grid) grid.style.display = '';
         return;
       }
-      if(d.total>0){
-        const p = Math.round(d.processed/d.total*100);
-        pct.textContent   = `${d.processed} / ${d.total}`;
-        bar.style.width   = p+'%';
-        label.textContent = `Classifying… ${p}% complete`;
+      if(d.total > 0){
+        const p = Math.round(d.processed / d.total * 100);
+        bar.style.width   = p + '%';
+        label.textContent = `${d.processed} / ${d.total} emails`;
+        pct.textContent   = p + '%';
+        sub.textContent   = `Processing ${d.processed} of ${d.total} emails…`;
       } else {
-        label.textContent = 'Fetching emails from Gmail…';
+        sub.textContent   = 'Fetching emails from Gmail…';
+        bar.style.width   = '8%';
       }
       setTimeout(poll, 2000);
-    }).catch(()=>setTimeout(poll,4000));
+    }).catch(()=>setTimeout(poll, 4000));
   }
   setTimeout(poll, 1500);
 })();

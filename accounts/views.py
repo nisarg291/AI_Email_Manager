@@ -1061,10 +1061,14 @@ def manage_emails(request):
                     .values_list("category_id", flat=True).distinct())
     categories      = EmailCategory.objects.filter(id__in=used_cat_ids).order_by("name")
     custom_cats     = request.user.custom_categories.all()
-    active_job_id   = request.GET.get("job")
-    active_job      = None
-    if active_job_id and active_job_id.isdigit():
-        active_job = ClassificationJob.objects.filter(user=request.user, pk=active_job_id).first()
+    # Always surface any currently running/pending job regardless of URL param
+    active_job = (ClassificationJob.objects
+                  .filter(user=request.user, status__in=["pending", "running"])
+                  .order_by("-created_at").first())
+    if not active_job:
+        active_job_id = request.GET.get("job")
+        if active_job_id and active_job_id.isdigit():
+            active_job = ClassificationJob.objects.filter(user=request.user, pk=active_job_id).first()
 
     profile_obj, _ = UserProfile.objects.get_or_create(
         user=request.user, defaults={"full_name": request.user.get_full_name()}
