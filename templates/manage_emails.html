@@ -439,7 +439,29 @@ function onScopeClick(form) {
   const url   = card.dataset.statusUrl;
   const grid  = document.getElementById('scope-grid-wrap');
 
+  // Client-side watchdog: if processed count doesn't change for 10 min, give up
+  let lastProcessed = -1;
+  let lastProgressAt = Date.now();
+  const CLIENT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+  function showError(msg){
+    sub.textContent  = msg;
+    pct.textContent  = '';
+    bar.style.width  = '0%';
+    card.style.background  = 'linear-gradient(135deg,#fef2f2,#fff1f1)';
+    card.style.borderColor = '#fca5a5';
+    card.querySelector('.job-card-title span').style.background = '#ef4444';
+    card.querySelector('.job-card-title').childNodes[1].textContent = ' Classification stopped.';
+    if(grid) grid.style.display = '';
+  }
+
   function poll(){
+    // Client-side timeout watchdog
+    if(Date.now() - lastProgressAt > CLIENT_TIMEOUT_MS){
+      showError('Timed out — the background worker stopped responding. Please try again.');
+      return;
+    }
+
     fetch(url).then(r=>r.json()).then(d=>{
       if(d.status==='done'){
         sub.textContent   = 'Classification complete!';
@@ -455,11 +477,7 @@ function onScopeClick(form) {
         return;
       }
       if(d.status==='error'){
-        sub.textContent   = 'Error: ' + (d.error_msg || 'Unknown error');
-        pct.textContent   = '';
-        card.style.background   = 'linear-gradient(135deg,#fef2f2,#fff1f1)';
-        card.style.borderColor  = '#fca5a5';
-        if(grid) grid.style.display = '';
+        showError('Error: ' + (d.error_msg || 'Unknown error'));
         return;
       }
       if(d.total > 0){
@@ -468,9 +486,15 @@ function onScopeClick(form) {
         label.textContent = `${d.processed} / ${d.total} emails`;
         pct.textContent   = p + '%';
         sub.textContent   = `Processing ${d.processed} of ${d.total} emails…`;
+        // Reset watchdog whenever processed count advances
+        if(d.processed !== lastProcessed){
+          lastProcessed  = d.processed;
+          lastProgressAt = Date.now();
+        }
       } else {
-        sub.textContent   = 'Fetching emails from Gmail…';
-        bar.style.width   = '8%';
+        sub.textContent = 'Fetching emails from Gmail…';
+        bar.style.width = '8%';
+        lastProgressAt  = Date.now(); // still starting up, reset watchdog
       }
       setTimeout(poll, 2000);
     }).catch(()=>setTimeout(poll, 4000));

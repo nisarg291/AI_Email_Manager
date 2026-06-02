@@ -687,9 +687,19 @@ from .models import UserCategoryPreference, EmailCategory
 @login_required
 def job_status(request, job_id):
     """JSON endpoint for polling classification job progress."""
+    from django.utils import timezone as _tz
     job = ClassificationJob.objects.filter(user=request.user, pk=job_id).first()
     if not job:
         return JsonResponse({"error": "not found"}, status=404)
+
+    # Auto-expire jobs that haven't progressed in over 30 minutes
+    if job.status in ("pending", "running"):
+        stale_threshold = _tz.now() - timedelta(minutes=30)
+        if job.updated_at < stale_threshold:
+            job.status = "error"
+            job.error_msg = "Job timed out — the background worker stopped responding. Please try again."
+            job.save(update_fields=["status", "error_msg", "updated_at"])
+
     pct = 0
     if job.total > 0:
         pct = round(job.processed / job.total * 100)
@@ -1062,6 +1072,18 @@ def manage_emails(request):
     categories      = EmailCategory.objects.filter(id__in=used_cat_ids).order_by("name")
     custom_cats     = request.user.custom_categories.all()
     # Always surface any currently running/pending job regardless of URL param
+    # Auto-expire stale jobs (not updated in >30 min) before showing them
+    from django.utils import timezone as _tz
+    stale_cutoff = _tz.now() - timedelta(minutes=30)
+    ClassificationJob.objects.filter(
+        user=request.user,
+        status__in=["pending", "running"],
+        updated_at__lt=stale_cutoff,
+    ).update(
+        status="error",
+        error_msg="Job timed out — the background worker stopped responding. Please try again.",
+        updated_at=_tz.now(),
+    )
     active_job = (ClassificationJob.objects
                   .filter(user=request.user, status__in=["pending", "running"])
                   .order_by("-created_at").first())

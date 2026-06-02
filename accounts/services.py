@@ -1540,8 +1540,10 @@ def start_batch_job(user, scope: str) -> "ClassificationJob":
 
 def _run_job(user_id: int, job_id: int) -> None:  # noqa: C901
     from django.contrib.auth.models import User as _User
+    from django.utils import timezone as _tz
 
     def _save_job(**kw):
+        kw.setdefault("updated_at", _tz.now())
         ClassificationJob.objects.filter(pk=job_id).update(**kw)
 
     try:
