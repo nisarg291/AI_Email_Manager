@@ -648,6 +648,7 @@ def email_delete_action(request, msg_id):
     return redirect(back_to)
 
 import json as _json
+import re as _re
 from django.http import JsonResponse
 from django.core.paginator import Paginator
 from .forms import ProfileStep1Form, ProfileStep2Form
@@ -951,9 +952,21 @@ def dashboard(request):
     }
     recent = (ClassifiedEmail.objects.filter(user=request.user)
               .select_related("category").order_by("-received_at")[:8])
+    label_counts = (ClassifiedEmail.objects
+                    .filter(user=request.user, category__isnull=False)
+                    .values("category__id", "category__short_label")
+                    .annotate(count=Count("id"))
+                    .order_by("-count")[:12])
+    custom_label_counts = (ClassifiedEmail.objects
+                           .filter(user=request.user, custom_category__isnull=False)
+                           .values("custom_category__id", "custom_category__name")
+                           .annotate(count=Count("id"))
+                           .order_by("-count")[:6])
     return render(request, "dashboard.html", {
         "google_acc": request.user.google_account, "profile": profile,
         "stats": stats, "recent": recent,
+        "label_counts": label_counts,
+        "custom_label_counts": custom_label_counts,
     })
 
 
@@ -1014,3 +1027,106 @@ def manage_emails(request):
         "active_job": active_job,
         "needs_reauth": not _has_gmail_scope(request.user),
     })
+
+
+@login_required
+def labels_view(request):
+    sys_labels = (ClassifiedEmail.objects
+                  .filter(user=request.user, category__isnull=False)
+                  .values("category__id", "category__name", "category__group", "category__short_label")
+                  .annotate(count=Count("id"))
+                  .order_by("-count"))
+    custom_labels = (ClassifiedEmail.objects
+                     .filter(user=request.user, custom_category__isnull=False)
+                     .values("custom_category__id", "custom_category__name")
+                     .annotate(count=Count("id"))
+                     .order_by("-count"))
+    uncategorised = ClassifiedEmail.objects.filter(
+        user=request.user, category__isnull=True, custom_category__isnull=True
+    ).count()
+    total = ClassifiedEmail.objects.filter(user=request.user).count()
+    return render(request, "labels.html", {
+        "sys_labels": sys_labels,
+        "custom_labels": custom_labels,
+        "uncategorised": uncategorised,
+        "total": total,
+    })
+
+
+@login_required
+def delete_emails_view(request):
+    if request.method == "POST":
+        action = request.POST.get("action")
+        try:
+            if action == "older_1month":
+                count = services.delete_emails_query(request.user, "older_than:30d")
+            elif action == "older_1year":
+                count = services.delete_emails_query(request.user, "older_than:1y")
+            elif action == "daterange":
+                from_date = request.POST.get("from_date", "").strip()
+                to_date   = request.POST.get("to_date", "").strip()
+                if not from_date or not to_date:
+                    messages.error(request, "Please select both start and end dates.")
+                    return redirect("delete_emails")
+                gmail_from = from_date.replace("-", "/")
+                gmail_to   = to_date.replace("-", "/")
+                query = f"after:{gmail_from} before:{gmail_to}"
+                count = services.delete_emails_query(request.user, query)
+            else:
+                messages.error(request, "Unknown action.")
+                return redirect("delete_emails")
+            messages.success(request, f"Permanently deleted {count} email(s) from Gmail.")
+        except Exception as exc:
+            messages.error(request, f"Deletion failed: {exc}")
+        return redirect("delete_emails")
+    return render(request, "delete_emails.html", {})
+
+
+@login_required
+def ai_reply_view(request, msg_id):
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    user_intent = request.POST.get("intent", "").strip()
+    if not user_intent:
+        return JsonResponse({"error": "Please describe what you want to say."}, status=400)
+    try:
+        email = services.get_message_full(request.user, msg_id)
+        profile = UserProfile.objects.filter(user=request.user).first()
+        sender_name = (profile.full_name if profile and profile.full_name
+                       else request.user.get_full_name() or request.user.email.split("@")[0])
+        body_text = email.get("body", "")
+        if email.get("body_kind") == "html":
+            body_text = _re.sub(r"<[^>]+>", " ", body_text)
+        reply = services.generate_ai_reply(
+            original_from    = email.get("from", ""),
+            original_subject = email.get("subject", ""),
+            original_body    = body_text[:2000],
+            user_intent      = user_intent,
+            sender_name      = sender_name,
+            sender_email     = request.user.email,
+        )
+        return JsonResponse({"reply": reply})
+    except Exception as exc:
+        return JsonResponse({"error": str(exc)}, status=500)
+
+
+@login_required
+def send_reply_view(request, msg_id):
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    reply_body = request.POST.get("body", "").strip()
+    if not reply_body:
+        return JsonResponse({"error": "Reply body cannot be empty."}, status=400)
+    try:
+        email = services.get_message_full(request.user, msg_id)
+        raw_from = email.get("from", "")
+        m = _re.search(r"<([^>]+)>", raw_from)
+        to_email = m.group(1) if m else raw_from
+        subject = email.get("subject", "")
+        if not subject.lower().startswith("re:"):
+            subject = f"Re: {subject}"
+        thread_id = email.get("thread_id") or email.get("id")
+        services.send_email_reply(request.user, to_email, subject, reply_body, thread_id)
+        return JsonResponse({"success": True, "message": "Reply sent successfully!"})
+    except Exception as exc:
+        return JsonResponse({"error": str(exc)}, status=500)

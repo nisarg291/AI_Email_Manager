@@ -1,0 +1,78 @@
+{% extends "base.html" %}{% block title %}Labels{% endblock %}
+{% block topbar_title %}Labels{% endblock %}
+{% block body %}
+
+<style>
+.lbl-header{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+.lbl-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.lbl-row{display:flex;align-items:center;gap:14px;padding:13px 18px;border-bottom:1px solid #f1f5f9;text-decoration:none;color:inherit;transition:background .13s}
+.lbl-row:last-child{border-bottom:none}
+.lbl-row:hover{background:#f8faff}
+.lbl-icon{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;font-size:16px;flex-shrink:0}
+.lbl-name{font-weight:600;font-size:13.5px;color:#0f172a;flex:1}
+.lbl-group{font-size:11px;color:#94a3b8;margin-top:1px}
+.lbl-count{background:#eef2ff;color:#4338ca;border-radius:20px;padding:2px 10px;font-size:12px;font-weight:700}
+.lbl-count-custom{background:#f5f3ff;color:#7c3aed}
+.lbl-section{font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;color:#94a3b8;padding:16px 18px 6px}
+.lbl-total{background:#f8fafc;color:#374151;border-radius:20px;padding:4px 14px;font-size:12px;font-weight:600;border:1px solid #e2e8f0}
+</style>
+
+<div class="lbl-header">
+  <div>
+    <h4 class="mb-1 fw-bold" style="color:#0f172a"><i class="bi bi-tags-fill text-primary me-2"></i>Labels</h4>
+    <p class="text-muted small mb-0">Browse emails by AI-assigned category labels.</p>
+  </div>
+  <span class="lbl-total"><i class="bi bi-envelope me-1"></i>{{ total }} classified</span>
+</div>
+
+<div class="lbl-card">
+  {% if sys_labels %}
+    <div class="lbl-section">System Categories</div>
+    {% for l in sys_labels %}
+      <a class="lbl-row" href="{% url 'manage_emails' %}?category={{ l.category__id }}">
+        <div class="lbl-icon" style="background:#eef2ff">🏷</div>
+        <div style="flex:1;min-width:0">
+          <div class="lbl-name">{{ l.category__short_label }}</div>
+          <div class="lbl-group">{{ l.category__group }}</div>
+        </div>
+        <span class="lbl-count">{{ l.count }}</span>
+      </a>
+    {% endfor %}
+  {% endif %}
+
+  {% if custom_labels %}
+    <div class="lbl-section">Custom Labels</div>
+    {% for l in custom_labels %}
+      <a class="lbl-row" href="{% url 'manage_emails' %}?custom_category={{ l.custom_category__id }}">
+        <div class="lbl-icon" style="background:#f5f3ff">⚡</div>
+        <div style="flex:1;min-width:0">
+          <div class="lbl-name">{{ l.custom_category__name }}</div>
+          <div class="lbl-group">Custom</div>
+        </div>
+        <span class="lbl-count lbl-count-custom">{{ l.count }}</span>
+      </a>
+    {% endfor %}
+  {% endif %}
+
+  {% if uncategorised %}
+    <div class="lbl-section">Other</div>
+    <a class="lbl-row" href="{% url 'manage_emails' %}">
+      <div class="lbl-icon" style="background:#f1f5f9">📂</div>
+      <div style="flex:1;min-width:0">
+        <div class="lbl-name">Uncategorised</div>
+        <div class="lbl-group">Not yet assigned a category</div>
+      </div>
+      <span class="lbl-count" style="background:#f1f5f9;color:#64748b">{{ uncategorised }}</span>
+    </a>
+  {% endif %}
+
+  {% if not sys_labels and not custom_labels and not uncategorised %}
+    <div class="elist-empty">
+      <i class="bi bi-tags"></i>
+      <strong>No labels yet</strong>
+      <p class="small mt-2 mb-0">Run AI classification to start labelling your inbox.</p>
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}

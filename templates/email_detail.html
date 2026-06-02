@@ -1,80 +1,119 @@
 {% extends "base.html" %}{% block title %}{{ email.subject }}{% endblock %}
+{% block topbar_title %}Email Detail{% endblock %}
 {% block body %}
 
 <style>
 .detail-back{display:inline-flex;align-items:center;gap:6px;color:#6366f1;font-size:.87rem;text-decoration:none;font-weight:500;margin-bottom:16px}
-.detail-back:hover{color:#4f46e5}
+.detail-back:hover{color:#4f46e5;text-decoration:underline}
 .detail-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)}
-.detail-header{padding:22px 24px 18px;border-bottom:1px solid #f1f5f9}
-.detail-subject{font-size:1.2rem;font-weight:700;color:#0f172a;margin-bottom:10px;line-height:1.35}
-.detail-meta{display:flex;flex-direction:column;gap:3px}
-.detail-meta-row{font-size:.82rem;color:#64748b}
-.detail-meta-row strong{color:#374151;margin-right:4px}
-.detail-ai-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:12px 16px;font-size:.82rem;margin:16px 24px 0;display:flex;flex-wrap:wrap;gap:16px}
-.detail-ai-item strong{color:#374151;display:block;margin-bottom:1px;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em}
-.detail-body{padding:20px 24px}
-.detail-actions{padding:16px 24px;border-top:1px solid #f1f5f9;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fafbfc}
-.btn-act{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:8px;font-size:.83rem;font-weight:500;border:none;cursor:pointer;text-decoration:none;transition:all .15s}
+.detail-header{padding:20px 24px 16px;border-bottom:1px solid #f1f5f9}
+.detail-subject{font-size:1.15rem;font-weight:700;color:#0f172a;margin-bottom:10px;line-height:1.35;word-break:break-word}
+.detail-meta{display:flex;flex-direction:column;gap:4px}
+.detail-meta-row{font-size:.82rem;color:#64748b;display:flex;gap:6px}
+.detail-meta-row strong{color:#374151;min-width:40px}
+.detail-ai-box{background:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 24px;display:flex;flex-wrap:wrap;gap:18px}
+.detail-ai-item strong{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;display:block;margin-bottom:2px}
+.detail-ai-item span{font-size:.83rem;color:#374151}
+.detail-body{padding:0}
+.detail-actions{padding:14px 24px;border-top:1px solid #f1f5f9;display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fafbfc}
+.badge-trash{display:inline-flex;align-items:center;gap:5px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:20px;padding:3px 10px;font-size:.75rem;font-weight:600;margin-top:6px}
+.btn-act{display:inline-flex;align-items:center;gap:6px;padding:7px 15px;border-radius:8px;font-size:.82rem;font-weight:500;border:none;cursor:pointer;text-decoration:none;transition:all .15s}
 .btn-act-trash{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
 .btn-act-trash:hover{background:#fee2e2;color:#b91c1c}
 .btn-act-delete{background:#fff;color:#dc2626;border:1px solid #fecaca}
 .btn-act-delete:hover{background:#fef2f2;color:#b91c1c}
 .btn-act-restore{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}
-.btn-act-restore:hover{background:#dcfce7;color:#15803d}
-.badge-trash{display:inline-flex;align-items:center;gap:5px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:20px;padding:3px 10px;font-size:.75rem;font-weight:600}
+.btn-act-restore:hover{background:#dcfce7}
+.btn-act-reply{background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;border:none}
+.btn-act-reply:hover{opacity:.9;color:#fff;transform:translateY(-1px)}
+
+/* ── AI Reply Panel ── */
+.reply-panel{display:none;border-top:2px solid #e2e8f0;background:#f8fafc}
+.reply-panel.open{display:block}
+.reply-inner{padding:20px 24px}
+.reply-title{font-weight:700;font-size:14px;color:#0f172a;margin-bottom:3px;display:flex;align-items:center;gap:7px}
+.reply-sub{font-size:12px;color:#94a3b8;margin-bottom:14px}
+.reply-intent{width:100%;border:1.5px solid #e2e8f0;border-radius:9px;padding:10px 13px;font-size:13.5px;font-family:inherit;resize:vertical;min-height:80px;transition:border-color .15s;background:#fff}
+.reply-intent:focus{outline:none;border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.1)}
+.reply-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.reply-draft{display:none;margin-top:16px}
+.reply-draft.show{display:block}
+.reply-draft-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.reply-draft-label i{color:#6366f1}
+.reply-textarea{width:100%;border:1.5px solid #e2e8f0;border-radius:9px;padding:12px 14px;font-size:13.5px;font-family:inherit;min-height:180px;resize:vertical;transition:border-color .15s;background:#fff;line-height:1.6}
+.reply-textarea:focus{outline:none;border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.1)}
+.reply-send-row{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
+.btn-generate{background:linear-gradient(135deg,#6366f1,#7c3aed);color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.btn-generate:hover{opacity:.9;transform:translateY(-1px)}
+.btn-generate:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.btn-send{background:#10b981;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.btn-send:hover{background:#059669;transform:translateY(-1px)}
+.btn-send:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.btn-cancel-reply{background:transparent;color:#94a3b8;border:1px solid #e2e8f0;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;transition:all .15s}
+.btn-cancel-reply:hover{background:#f1f5f9;color:#374151}
+.reply-status{font-size:13px;font-weight:500;padding:6px 0}
+.reply-status.ok{color:#059669}
+.reply-status.err{color:#dc2626}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 
 <a href="{% url back_to %}" class="detail-back"><i class="bi bi-arrow-left"></i> Back</a>
 
 <div class="detail-card">
+
   <div class="detail-header">
     <div class="detail-subject">{{ email.subject }}</div>
     <div class="detail-meta">
-      <div class="detail-meta-row"><strong>From:</strong>{{ email.from }}</div>
-      {% if email.to %}<div class="detail-meta-row"><strong>To:</strong>{{ email.to }}</div>{% endif %}
-      {% if email.date %}<div class="detail-meta-row"><strong>Date:</strong>{{ email.date|date:"D, d M Y H:i" }}</div>{% endif %}
+      <div class="detail-meta-row"><strong>From</strong><span>{{ email.from }}</span></div>
+      {% if email.to %}<div class="detail-meta-row"><strong>To</strong><span>{{ email.to }}</span></div>{% endif %}
+      {% if email.date %}<div class="detail-meta-row"><strong>Date</strong><span>{{ email.date|date:"D, d M Y H:i" }}</span></div>{% endif %}
     </div>
-    {% if email.in_trash %}
-      <span class="badge-trash mt-2"><i class="bi bi-trash"></i> In Trash</span>
-    {% endif %}
+    {% if email.in_trash %}<span class="badge-trash"><i class="bi bi-trash"></i> In Trash</span>{% endif %}
   </div>
 
   {% if ce %}
     <div class="detail-ai-box">
       <div class="detail-ai-item">
         <strong>AI Category</strong>
-        {% if ce.category %}{{ ce.category.group }} / {{ ce.category.name }}{% else %}—{% endif %}
+        <span>{% if ce.category %}{{ ce.category.group }} / {{ ce.category.name }}{% else %}—{% endif %}</span>
       </div>
       <div class="detail-ai-item">
         <strong>Importance</strong>
-        {{ ce.importance }}/5{% if ce.is_urgent %} 🔥 Urgent{% endif %}
+        <span>{{ ce.importance }}/5{% if ce.is_urgent %} 🔥 Urgent{% endif %}</span>
       </div>
       {% if ce.reason %}
         <div class="detail-ai-item" style="flex:1;min-width:200px">
           <strong>AI Reason</strong>
-          {{ ce.reason|truncatechars:140 }}
+          <span>{{ ce.reason|truncatechars:160 }}</span>
         </div>
       {% endif %}
       {% if ce.is_event %}
         <div class="detail-ai-item">
           <strong>Event</strong>
-          {{ ce.event_when }}
+          <span>{{ ce.event_when }}</span>
         </div>
       {% endif %}
     </div>
   {% endif %}
 
-  <div class="detail-body">
-    <div class="email-body-wrap border rounded p-3" style="background:#fff">
-      {% if email.body_kind == 'html' %}
-        <iframe sandbox="allow-same-origin" srcdoc="{{ email.body }}"
-                style="width:100%; min-height:500px; border:0"></iframe>
-      {% else %}
-        <pre style="white-space:pre-wrap; font-family: inherit; margin:0">{{ email.body }}</pre>
-      {% endif %}
-    </div>
+  <!-- Email body — auto-expands to full content height -->
+  <div style="padding:0">
+    {% if email.body_kind == 'html' %}
+      <iframe id="email-iframe"
+              sandbox="allow-same-origin"
+              srcdoc="{{ email.body }}"
+              style="width:100%;border:0;display:block;min-height:400px"
+              onload="try{this.style.height=this.contentDocument.documentElement.scrollHeight+'px'}catch(e){}">
+      </iframe>
+    {% else %}
+      <div style="padding:20px 24px">
+        <pre style="white-space:pre-wrap;font-family:inherit;margin:0;font-size:13.5px;line-height:1.65;color:#374151">{{ email.body }}</pre>
+      </div>
+    {% endif %}
   </div>
 
+  <!-- Actions bar -->
   <div class="detail-actions">
     {% if email.in_trash %}
       <form method="post" action="{% url 'trash_restore' email.id %}">
@@ -84,7 +123,7 @@
         </button>
       </form>
       <form method="post" action="{% url 'email_delete_action' email.id %}"
-            onsubmit="return confirm('Permanently delete this email? This cannot be undone.')">
+            onsubmit="return confirm('Permanently delete this email? Cannot be undone.')">
         {% csrf_token %}
         <input type="hidden" name="back" value="{{ back_to }}">
         <button type="submit" class="btn-act btn-act-delete">
@@ -100,7 +139,7 @@
         </button>
       </form>
       <form method="post" action="{% url 'email_delete_action' email.id %}"
-            onsubmit="return confirm('Permanently delete this email? This cannot be undone.')">
+            onsubmit="return confirm('Permanently delete this email? Cannot be undone.')">
         {% csrf_token %}
         <input type="hidden" name="back" value="{{ back_to }}">
         <button type="submit" class="btn-act btn-act-delete">
@@ -110,11 +149,129 @@
     {% endif %}
 
     {% if ce and ce.unsubscribe_url %}
-      <a href="{{ ce.unsubscribe_url }}" target="_blank" rel="noopener" class="btn-act" style="background:#f8fafc;color:#374151;border:1px solid #d1d5db">
+      <a href="{{ ce.unsubscribe_url }}" target="_blank" rel="noopener" class="btn-act"
+         style="background:#f8fafc;color:#374151;border:1px solid #d1d5db">
         <i class="bi bi-box-arrow-up-right"></i> Unsubscribe
       </a>
     {% endif %}
+
+    <button type="button" class="btn-act btn-act-reply" id="reply-toggle"
+            onclick="toggleReplyPanel()">
+      <i class="bi bi-stars"></i> Reply with AI
+    </button>
   </div>
+
+  <!-- AI Reply panel (hidden until toggled) -->
+  <div class="reply-panel" id="reply-panel">
+    <div class="reply-inner">
+      <div class="reply-title"><i class="bi bi-stars" style="color:#6366f1"></i> AI Reply Composer</div>
+      <div class="reply-sub">Describe what you want to say — the AI will draft a full reply matching the email's tone.</div>
+
+      <textarea id="reply-intent" class="reply-intent"
+                placeholder="e.g. Thank them for the proposal and say we need 2 more weeks to review it."></textarea>
+
+      <div class="reply-actions">
+        <button class="btn-generate" id="btn-generate" onclick="generateReply()">
+          <i class="bi bi-stars"></i> Generate with AI
+        </button>
+        <button class="btn-cancel-reply" onclick="closeReplyPanel()">Cancel</button>
+      </div>
+
+      <div class="reply-draft" id="reply-draft">
+        <div class="reply-draft-label"><i class="bi bi-pencil-square"></i> AI Draft — review and edit before sending</div>
+        <textarea id="reply-body" class="reply-textarea"></textarea>
+        <div class="reply-send-row">
+          <button class="btn-send" id="btn-send" onclick="sendReply()">
+            <i class="bi bi-send-fill"></i> Send Reply
+          </button>
+          <button class="btn-generate" style="background:transparent;color:#6366f1;border:1.5px solid #c7d2fe"
+                  onclick="generateReply()">
+            <i class="bi bi-arrow-repeat"></i> Regenerate
+          </button>
+          <span id="reply-status" class="reply-status"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
+
+<script>
+(function(){
+  const REPLY_URL = "{% url 'ai_reply' email.id %}";
+  const SEND_URL  = "{% url 'send_reply' email.id %}";
+  const CSRF      = "{{ csrf_token }}";
+
+  window.toggleReplyPanel = function(){
+    const panel = document.getElementById('reply-panel');
+    if(panel.classList.contains('open')){
+      closeReplyPanel();
+    } else {
+      panel.classList.add('open');
+      document.getElementById('reply-intent').focus();
+      document.getElementById('reply-toggle').innerHTML = '<i class="bi bi-x-lg"></i> Close';
+    }
+  };
+
+  window.closeReplyPanel = function(){
+    document.getElementById('reply-panel').classList.remove('open');
+    document.getElementById('reply-toggle').innerHTML = '<i class="bi bi-stars"></i> Reply with AI';
+    document.getElementById('reply-draft').classList.remove('show');
+    document.getElementById('reply-status').textContent = '';
+  };
+
+  window.generateReply = async function(){
+    const intent = document.getElementById('reply-intent').value.trim();
+    if(!intent){ alert('Please describe what you want to say.'); return; }
+    const btn = document.getElementById('btn-generate');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Generating…';
+    document.getElementById('reply-status').textContent = '';
+    try {
+      const fd = new FormData();
+      fd.append('intent', intent);
+      fd.append('csrfmiddlewaretoken', CSRF);
+      const r = await fetch(REPLY_URL, {method:'POST', body:fd});
+      const d = await r.json();
+      if(d.error){ throw new Error(d.error); }
+      document.getElementById('reply-body').value = d.reply;
+      document.getElementById('reply-draft').classList.add('show');
+      document.getElementById('reply-body').focus();
+    } catch(e){
+      document.getElementById('reply-status').textContent = '⚠ ' + e.message;
+      document.getElementById('reply-status').className = 'reply-status err';
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-stars"></i> Generate with AI';
+    }
+  };
+
+  window.sendReply = async function(){
+    const body = document.getElementById('reply-body').value.trim();
+    if(!body){ alert('Reply body is empty.'); return; }
+    const btn = document.getElementById('btn-send');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Sending…';
+    document.getElementById('reply-status').textContent = '';
+    try {
+      const fd = new FormData();
+      fd.append('body', body);
+      fd.append('csrfmiddlewaretoken', CSRF);
+      const r = await fetch(SEND_URL, {method:'POST', body:fd});
+      const d = await r.json();
+      if(d.error){ throw new Error(d.error); }
+      document.getElementById('reply-status').textContent = '✓ ' + d.message;
+      document.getElementById('reply-status').className = 'reply-status ok';
+      btn.innerHTML = '<i class="bi bi-check2"></i> Sent!';
+      setTimeout(closeReplyPanel, 2000);
+    } catch(e){
+      document.getElementById('reply-status').textContent = '⚠ ' + e.message;
+      document.getElementById('reply-status').className = 'reply-status err';
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-send-fill"></i> Send Reply';
+    }
+  };
+})();
+</script>
 
 {% endblock %}

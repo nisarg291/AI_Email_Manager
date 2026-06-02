@@ -1,0 +1,106 @@
+{% extends "base.html" %}{% block title %}Delete Emails{% endblock %}
+{% block topbar_title %}Delete Emails{% endblock %}
+{% block body %}
+
+<style>
+.del-header{margin-bottom:24px}
+.del-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:24px}
+.del-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:22px;box-shadow:0 1px 3px rgba(0,0,0,.05);transition:all .15s}
+.del-card:hover{border-color:#cbd5e1;box-shadow:0 4px 14px rgba(0,0,0,.07)}
+.del-icon{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:20px;margin-bottom:14px}
+.del-title{font-weight:700;font-size:15px;color:#0f172a;margin-bottom:5px}
+.del-desc{font-size:13px;color:#64748b;margin-bottom:16px;line-height:1.5}
+.del-btn{width:100%;padding:10px;border:none;border-radius:9px;font-size:13.5px;font-weight:600;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:7px}
+.del-btn-danger{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+.del-btn-danger:hover{background:#fee2e2;color:#b91c1c}
+.del-btn-orange{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
+.del-btn-orange:hover{background:#ffedd5;color:#9a3412}
+.date-range-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:22px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.del-warning{background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;padding:12px 16px;font-size:13px;color:#92400e;display:flex;gap:10px;align-items:flex-start;margin-bottom:24px}
+</style>
+
+<div class="del-header">
+  <h4 class="mb-1 fw-bold" style="color:#0f172a"><i class="bi bi-x-circle text-danger me-2"></i>Delete Emails</h4>
+  <p class="text-muted small mb-0">Permanently remove emails from your Gmail account by age or date range.</p>
+</div>
+
+{% if messages %}
+  {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible mb-3" role="alert">
+      {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  {% endfor %}
+{% endif %}
+
+<div class="del-warning">
+  <i class="bi bi-exclamation-triangle-fill" style="font-size:18px;flex-shrink:0;margin-top:1px"></i>
+  <div>
+    <strong>This action is permanent.</strong> Deleted emails cannot be recovered.
+    They are removed directly from Gmail using <em>batchDelete</em> — they will not go to Trash first.
+    Make sure you want to do this before proceeding.
+  </div>
+</div>
+
+<div class="del-grid">
+  <div class="del-card">
+    <div class="del-icon" style="background:#fff7ed">🗓</div>
+    <div class="del-title">Older than 1 month</div>
+    <div class="del-desc">Delete all emails received more than 30 days ago from your entire Gmail account.</div>
+    <form method="post" onsubmit="return confirm('Permanently delete ALL emails older than 30 days? This cannot be undone.');">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="older_1month">
+      <button type="submit" class="del-btn del-btn-orange">
+        <i class="bi bi-calendar-x"></i> Delete emails &gt; 1 month old
+      </button>
+    </form>
+  </div>
+
+  <div class="del-card">
+    <div class="del-icon" style="background:#fef2f2">📅</div>
+    <div class="del-title">Older than 1 year</div>
+    <div class="del-desc">Delete all emails received more than 1 year ago. Useful for clearing old clutter.</div>
+    <form method="post" onsubmit="return confirm('Permanently delete ALL emails older than 1 year? This cannot be undone.');">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="older_1year">
+      <button type="submit" class="del-btn del-btn-danger">
+        <i class="bi bi-calendar2-x"></i> Delete emails &gt; 1 year old
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="date-range-card">
+  <h6 class="fw-700 mb-1" style="font-weight:700"><i class="bi bi-calendar-range me-2 text-primary"></i>Delete by Date Range</h6>
+  <p class="text-muted small mb-4">Select a start and end date. All emails received between those dates will be permanently deleted.</p>
+  <form method="post" onsubmit="return confirmDateRange()">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="daterange">
+    <div class="row g-3 align-items-end">
+      <div class="col-sm-4">
+        <label class="form-label">From date</label>
+        <input type="date" name="from_date" id="from_date" class="form-control" required>
+      </div>
+      <div class="col-sm-4">
+        <label class="form-label">To date</label>
+        <input type="date" name="to_date" id="to_date" class="form-control" required>
+      </div>
+      <div class="col-sm-4">
+        <button type="submit" class="del-btn del-btn-danger w-100" style="height:42px">
+          <i class="bi bi-x-circle"></i> Delete in range
+        </button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+function confirmDateRange(){
+  const f = document.getElementById('from_date').value;
+  const t = document.getElementById('to_date').value;
+  if(!f||!t){return false;}
+  if(new Date(f)>new Date(t)){alert('Start date must be before end date.');return false;}
+  return confirm(`Permanently delete all emails from ${f} to ${t}? This cannot be undone.`);
+}
+</script>
+
+{% endblock %}

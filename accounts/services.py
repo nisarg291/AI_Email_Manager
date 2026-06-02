@@ -633,11 +633,11 @@ def gmail_service(user):
 
 
 SCOPE_QUERIES = {
-    "latest200" : ("in:inbox",               200, "Latest 200 emails"),
-    "week1"     : ("in:inbox newer_than:7d", 300, "Last 1 week"),
-    "week2"     : ("in:inbox newer_than:14d",400, "Last 2 weeks"),
-    "month1"    : ("in:inbox newer_than:30d",500, "Last 1 month"),
-    "live"      : ("in:inbox newer_than:1d", 50,  "New today"),  # used by Celery
+    "latest200" : ("in:inbox",               200,  "Latest 200 emails"),
+    "week1"     : ("in:inbox newer_than:7d",  9999, "Last 1 week"),
+    "week2"     : ("in:inbox newer_than:14d", 9999, "Last 2 weeks"),
+    "month1"    : ("in:inbox newer_than:30d", 9999, "Last 1 month"),
+    "live"      : ("in:inbox newer_than:1d",  50,   "New today"),
 }
 
 
@@ -721,7 +721,8 @@ def get_message_full(user, msg_id):
                 received = received.replace(tzinfo=timezone.utc)
         except Exception: pass
     return {
-        "id": msg["id"], "subject": headers.get("Subject", "(no subject)"),
+        "id": msg["id"], "thread_id": msg.get("threadId", ""),
+        "subject": headers.get("Subject", "(no subject)"),
         "from": headers.get("From", ""), "to": headers.get("To", ""),
         "date": received, "body": body, "body_kind": kind,
         "snippet": msg.get("snippet", ""), "in_trash": "TRASH" in msg.get("labelIds", []),
@@ -760,6 +761,66 @@ def delete_all_trash(user):
         total += len(ids)
         if len(msgs) < 500: break
     return total
+
+
+def delete_emails_query(user, query: str, max_results: int = 10000) -> int:
+    """Permanently delete all Gmail messages matching `query`. Returns count deleted."""
+    svc = gmail_service(user)
+    total = 0
+    while total < max_results:
+        resp = svc.users().messages().list(userId="me", q=query, maxResults=500).execute()
+        msgs = resp.get("messages", [])
+        if not msgs:
+            break
+        ids = [m["id"] for m in msgs]
+        svc.users().messages().batchDelete(userId="me", body={"ids": ids}).execute()
+        ClassifiedEmail.objects.filter(user=user, gmail_id__in=ids).delete()
+        total += len(ids)
+        if len(msgs) < 500:
+            break
+    return total
+
+
+def send_email_reply(user, to_email: str, subject: str, body: str, thread_id: str = None):
+    """Send an email via Gmail API on behalf of `user`."""
+    import base64
+    from email.mime.text import MIMEText
+    svc = gmail_service(user)
+    mime = MIMEText(body, "plain", "utf-8")
+    mime["to"] = to_email
+    mime["subject"] = subject
+    raw = base64.urlsafe_b64encode(mime.as_bytes()).decode()
+    msg_body: dict = {"raw": raw}
+    if thread_id:
+        msg_body["threadId"] = thread_id
+    svc.users().messages().send(userId="me", body=msg_body).execute()
+
+
+def generate_ai_reply(original_from: str, original_subject: str,
+                      original_body: str, user_intent: str,
+                      sender_name: str, sender_email: str) -> str:
+    """Use OpenAI to draft an email reply."""
+    if _openai is None:
+        raise RuntimeError("OPENAI_API_KEY is not configured.")
+    prompt = (
+        f"You are drafting an email reply on behalf of {sender_name} ({sender_email}).\n\n"
+        f"ORIGINAL EMAIL\nFrom: {original_from}\nSubject: {original_subject}\n"
+        f"Body:\n{original_body[:2000]}\n\n"
+        f"USER'S INTENT:\n{user_intent}\n\n"
+        "INSTRUCTIONS:\n"
+        "1. Judge the tone of the original (formal vs. casual) and match it.\n"
+        "2. Write a complete, well-structured reply that fulfils the user's intent.\n"
+        "3. Include a proper greeting and sign-off using the sender's name.\n"
+        "4. Return ONLY the email body — no subject line, no meta-commentary.\n\n"
+        "EMAIL REPLY:"
+    )
+    resp = _openai.chat.completions.create(
+        model=settings.OPENAI_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=700,
+        temperature=0.7,
+    )
+    return resp.choices[0].message.content.strip()
 
 
 # -------- AI classification --------

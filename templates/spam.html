@@ -1,29 +1,43 @@
 {% extends "base.html" %}{% block title %}Spam{% endblock %}
+{% block topbar_title %}Spam{% endblock %}
 {% block body %}
-<h2 class="mb-4"><i class="bi bi-shield-exclamation"></i> Spam</h2>
-{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
-<div class="card border-0 shadow-sm"><div class="table-responsive">
-<table class="table mb-0"><thead class="table-light"><tr><th>From / Subject</th><th>Snippet</th></tr></thead><tbody>
-{% for m in items %}
-<tr>
-    <td colspan="2">
-        <a href="{% url 'email_detail' m.id %}?back=spam"
-           class="text-decoration-none text-dark d-block">
 
-            <div class="d-flex justify-content-between">
-                <div>
-                    <div class="text-muted small">{{ m.from }}</div>
-                    <div>{{ m.subject }}</div>
-                </div>
+<div class="d-flex align-items-start justify-content-between mb-4 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-1 fw-bold" style="color:#0f172a"><i class="bi bi-shield-exclamation text-danger me-2"></i>Spam</h4>
+    <p class="text-muted small mb-0">Messages Gmail identified as spam. Shown live from your account.</p>
+  </div>
+  {% if items %}
+    <span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600">
+      {{ items|length }} message{{ items|length|pluralize }}
+    </span>
+  {% endif %}
+</div>
 
-                <div class="text-muted small">
-                    {{ m.snippet|truncatechars:100 }}
-                </div>
-            </div>
+{% if error %}<div class="alert alert-modern alert-danger mb-3"><i class="bi bi-exclamation-triangle-fill"></i>{{ error }}</div>{% endif %}
 
-        </a>
-    </td>
-</tr>
-{% empty %}<tr><td colspan="2" class="text-muted text-center py-4">No spam.</td></tr>{% endfor %}
-</tbody></table></div></div>
+<div class="card-modern p-0">
+  <ul class="elist">
+    {% for m in items %}
+      <li class="elist-item" onclick="window.location='{% url 'email_detail' m.id %}?back=spam'">
+        <div class="elist-avatar" style="background:linear-gradient(135deg,#94a3b8,#64748b)">{{ m.from|slice:":1"|upper }}</div>
+        <div class="elist-body">
+          <div class="elist-sender">{{ m.from|truncatechars:50 }}</div>
+          <div class="elist-subject">{{ m.subject|default:"(no subject)"|truncatechars:70 }}</div>
+          {% if m.snippet %}<div class="elist-snippet">{{ m.snippet|truncatechars:100 }}</div>{% endif %}
+        </div>
+        <div class="elist-meta">
+          <span style="background:#fef2f2;color:#dc2626;border-radius:6px;font-size:10px;padding:2px 7px;font-weight:600">Spam</span>
+        </div>
+      </li>
+    {% empty %}
+      <li class="elist-empty">
+        <i class="bi bi-shield-check text-success"></i>
+        <strong>No spam found</strong>
+        <p class="small mt-1 mb-0">Your spam folder is empty.</p>
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+
 {% endblock %}

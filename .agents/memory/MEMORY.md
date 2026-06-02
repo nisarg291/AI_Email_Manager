@@ -1,0 +1,1 @@
+- [Django template underscore vars](django-template-underscore.md) — Django templates ban variables starting with `_`; use `global_active_job` not `_global_active_job` in context processors.

@@ -1,32 +1,74 @@
 {% extends "base.html" %}{% block title %}Important{% endblock %}
+{% block topbar_title %}Important{% endblock %}
 {% block body %}
-<h2 class="mb-4">Important & Upcoming</h2>
 
-<h5 class="text-primary"><i class="bi bi-calendar-event"></i> Events / Meetings / Deadlines</h5>
-<div class="list-group mb-4">
-  {% for e in events %}
-    <a href="{% url 'email_detail' e.gmail_id %}?back=important" class="list-group-item list-group-item-action">
-      <div class="d-flex justify-content-between">
-        <strong>{{ e.subject }}</strong>
-        {% if e.event_when %}<span class="badge bg-primary">{{ e.event_when }}</span>{% endif %}
-      </div>
-      <div class="text-muted small">{{ e.sender }}</div>
-      <div class="small mt-1">{{ e.reason }}</div>
-    </a>
-  {% empty %}<div class="text-muted">No upcoming events yet. Run the AI on your inbox.</div>{% endfor %}
+<style>
+.imp-section-title{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#374151;margin:0 0 10px}
+.imp-section-title i{font-size:16px}
+.event-badge{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;font-size:11px;padding:2px 8px;font-weight:600}
+.reason-chip{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;border-radius:6px;font-size:11px;padding:2px 8px;margin-top:4px;display:inline-block}
+</style>
+
+<div class="mb-4">
+  <h4 class="mb-1 fw-bold" style="color:#0f172a"><i class="bi bi-star-fill text-warning me-2"></i>Important & Upcoming</h4>
+  <p class="text-muted small mb-0">High-importance emails and scheduled events from your inbox.</p>
 </div>
 
-<h5 class="text-warning"><i class="bi bi-star"></i> Other Important</h5>
-<div class="list-group">
-  {% for e in others %}
-    <a href="{% url 'email_detail' e.gmail_id %}?back=important" class="list-group-item list-group-item-action">
-      <div class="d-flex justify-content-between">
-        <strong>{{ e.subject }}</strong>
-        {% if e.category %}<span class="badge bg-secondary">{{ e.category.name }}</span>{% endif %}
-      </div>
-      <div class="text-muted small">{{ e.sender }}</div>
-      <div class="small mt-1">{{ e.reason }}</div>
-    </a>
-  {% empty %}<div class="text-muted">No important emails yet.</div>{% endfor %}
+{% if events %}
+<div class="mb-4">
+  <div class="imp-section-title"><i class="bi bi-calendar-event text-primary"></i> Events / Meetings / Deadlines</div>
+  <div class="card-modern p-0">
+    <ul class="elist">
+      {% for e in events %}
+        <li class="elist-item" onclick="window.location='{% url 'email_detail' e.gmail_id %}?back=important'">
+          <div class="elist-avatar" style="background:linear-gradient(135deg,#3b82f6,#2563eb)">{{ e.sender|slice:":1"|upper }}</div>
+          <div class="elist-body">
+            <div class="elist-sender">{{ e.sender|truncatechars:45 }}</div>
+            <div class="elist-subject">{{ e.subject|truncatechars:70 }}</div>
+            {% if e.reason %}<span class="reason-chip">{{ e.reason|truncatechars:80 }}</span>{% endif %}
+          </div>
+          <div class="elist-meta">
+            <span class="elist-time">{{ e.received_at|date:"M d, H:i" }}</span>
+            {% if e.event_when %}<span class="event-badge"><i class="bi bi-calendar3 me-1"></i>{{ e.event_when }}</span>{% endif %}
+            <span class="badge-tier tier-important">⚡ Event</span>
+          </div>
+        </li>
+      {% empty %}
+        <li class="elist-empty" style="padding:28px"><i class="bi bi-calendar"></i><strong>No upcoming events</strong></li>
+      {% endfor %}
+    </ul>
+  </div>
 </div>
+{% endif %}
+
+<div>
+  <div class="imp-section-title"><i class="bi bi-star text-warning"></i> Other Important</div>
+  <div class="card-modern p-0">
+    <ul class="elist">
+      {% for e in others %}
+        <li class="elist-item" onclick="window.location='{% url 'email_detail' e.gmail_id %}?back=important'">
+          <div class="elist-avatar" style="background:linear-gradient(135deg,#f59e0b,#d97706)">{{ e.sender|slice:":1"|upper }}</div>
+          <div class="elist-body">
+            <div class="elist-sender">{{ e.sender|truncatechars:45 }}</div>
+            <div class="elist-subject">{{ e.subject|truncatechars:70 }}</div>
+            {% if e.reason %}<span class="reason-chip">{{ e.reason|truncatechars:80 }}</span>{% endif %}
+          </div>
+          <div class="elist-meta">
+            <span class="elist-time">{{ e.received_at|date:"M d, H:i" }}</span>
+            {% if e.category %}<span class="badge-cat">{{ e.category.short_label }}</span>{% endif %}
+            {% if e.importance >= 5 %}<span class="badge-tier tier-critical">Critical</span>
+            {% else %}<span class="badge-tier tier-important">High</span>{% endif %}
+          </div>
+        </li>
+      {% empty %}
+        <li class="elist-empty">
+          <i class="bi bi-star"></i>
+          <strong>No important emails yet</strong>
+          <p class="small mt-1 mb-0">Run AI classification to surface high-importance emails.</p>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+
 {% endblock %}

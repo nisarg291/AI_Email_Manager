@@ -1,40 +1,107 @@
-
 {% extends "base.html" %}{% block title %}Dashboard{% endblock %}
 {% block topbar_title %}Dashboard{% endblock %}
 {% block body %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+
+<style>
+.dash-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px}
+.lbl-strip{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.lbl-chip{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:5px 13px;font-size:12.5px;font-weight:600;color:#374151;text-decoration:none;transition:all .15s;cursor:pointer}
+.lbl-chip:hover{border-color:#6366f1;background:#eef2ff;color:#4338ca}
+.lbl-chip .cnt{background:#eef2ff;color:#4338ca;border-radius:10px;padding:0 7px;font-size:11px;font-weight:700;min-width:22px;text-align:center}
+.lbl-chip.custom .cnt{background:#f5f3ff;color:#7c3aed}
+</style>
+
+<div class="dash-header">
   <div>
     <h2 class="mb-1 fw-bold">Welcome back{% if user.first_name %}, {{ user.first_name }}{% endif %} 👋</h2>
-    <p class="text-muted mb-0">Here's what's happening in your inbox.</p>
+    <p class="text-muted mb-0">Here's a snapshot of your AI-managed inbox.</p>
   </div>
-  <a href="{% url 'manage_emails' %}" class="btn btn-primary"><i class="bi bi-magic"></i> Run AI now</a>
+  <a href="{% url 'manage_emails' %}" class="btn btn-primary"><i class="bi bi-magic me-1"></i> Run AI now</a>
 </div>
 
 <div class="row g-3 mb-4">
-  <div class="col-md-3"><div class="stat-card"><div class="stat-label">Classified</div><div class="stat-value">{{ stats.total }}</div></div></div>
-  <div class="col-md-3"><div class="stat-card"><div class="stat-label">Urgent</div><div class="stat-value" style="color:var(--critical)">{{ stats.urgent }}</div></div></div>
-  <div class="col-md-3"><div class="stat-card"><div class="stat-label">Important</div><div class="stat-value" style="color:var(--important)">{{ stats.important }}</div></div></div>
-  <div class="col-md-3"><div class="stat-card"><div class="stat-label">Auto-trashed</div><div class="stat-value text-muted">{{ stats.trashed }}</div></div></div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-label">Classified</div>
+      <div class="stat-value">{{ stats.total }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="{% url 'urgent' %}" style="text-decoration:none">
+      <div class="stat-card hover-lift">
+        <div class="stat-label">Urgent</div>
+        <div class="stat-value" style="color:var(--critical)">{{ stats.urgent }}</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="{% url 'important' %}" style="text-decoration:none">
+      <div class="stat-card hover-lift">
+        <div class="stat-label">Important</div>
+        <div class="stat-value" style="color:var(--important)">{{ stats.important }}</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="{% url 'trash' %}" style="text-decoration:none">
+      <div class="stat-card hover-lift">
+        <div class="stat-label">Auto-trashed</div>
+        <div class="stat-value text-muted">{{ stats.trashed }}</div>
+      </div>
+    </a>
+  </div>
 </div>
+
+{% if label_counts %}
+<div class="card-modern mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h6 class="mb-0 fw-bold"><i class="bi bi-tags-fill text-primary me-2"></i>Labels</h6>
+    <a href="{% url 'labels' %}" class="small text-primary text-decoration-none">View all →</a>
+  </div>
+  <p class="text-muted small mb-3">Click any label to browse those emails.</p>
+  <div class="lbl-strip">
+    {% for l in label_counts %}
+      <a href="{% url 'manage_emails' %}?category={{ l.category__id }}" class="lbl-chip">
+        <span>{{ l.category__short_label }}</span>
+        <span class="cnt">{{ l.count }}</span>
+      </a>
+    {% endfor %}
+    {% for l in custom_label_counts %}
+      <a href="{% url 'manage_emails' %}?custom_category={{ l.custom_category__id }}" class="lbl-chip custom">
+        <span>⚡ {{ l.custom_category__name }}</span>
+        <span class="cnt custom">{{ l.count }}</span>
+      </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 
 <div class="card-modern">
   <div class="d-flex justify-content-between align-items-center mb-3">
-    <h5 class="mb-0">Recent activity</h5>
-    <a href="{% url 'manage_emails' %}" class="small">View all →</a>
+    <h6 class="mb-0 fw-bold">Recent activity</h6>
+    <a href="{% url 'manage_emails' %}" class="small text-primary text-decoration-none">View all →</a>
   </div>
-  {% for e in recent %}
-    <a href="{% url 'email_detail' e.gmail_id %}" class="d-flex justify-content-between py-2 border-bottom text-decoration-none text-body">
-      <div class="text-truncate" style="max-width:60%">
-        <div class="subject text-truncate">{{ e.subject }}</div>
-        <div class="sender text-truncate">{{ e.sender }}</div>
-      </div>
-      <div class="text-end">
-        {% if e.category %}<span class="badge-cat">{{ e.category.short_label }}</span>{% endif %}
-        <div class="small text-muted mt-1">{{ e.received_at|date:"M d, H:i" }}</div>
-      </div>
-    </a>
-  {% empty %}
-    <p class="text-muted text-center py-4 mb-0">No emails classified yet. <a href="{% url 'manage_emails' %}">Run AI →</a></p>
-  {% endfor %}
+  <ul class="elist" style="margin:0 -22px -22px">
+    {% for e in recent %}
+      <li class="elist-item" onclick="window.location='{% url 'email_detail' e.gmail_id %}'">
+        <div class="elist-avatar" style="background:linear-gradient(135deg,#6366f1,#7c3aed)">{{ e.sender|slice:":1"|upper }}</div>
+        <div class="elist-body">
+          <div class="elist-sender">{{ e.sender|truncatechars:40 }}</div>
+          <div class="elist-subject">{{ e.subject|truncatechars:65 }}</div>
+        </div>
+        <div class="elist-meta">
+          {% if e.category %}<span class="badge-cat">{{ e.category.short_label }}</span>{% endif %}
+          <span class="elist-time">{{ e.received_at|date:"M d, H:i" }}</span>
+        </div>
+      </li>
+    {% empty %}
+      <li class="elist-empty" style="padding:36px">
+        <i class="bi bi-inbox"></i>
+        <strong>No emails classified yet</strong>
+        <p class="small mt-1 mb-0"><a href="{% url 'manage_emails' %}" class="text-primary">Run AI →</a></p>
+      </li>
+    {% endfor %}
+  </ul>
 </div>
+
 {% endblock %}

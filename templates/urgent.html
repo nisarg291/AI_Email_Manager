@@ -1,17 +1,50 @@
 {% extends "base.html" %}{% block title %}Urgent{% endblock %}
+{% block topbar_title %}Urgent{% endblock %}
 {% block body %}
-<h2 class="mb-4 text-warning"><i class="bi bi-exclamation-triangle-fill"></i> Urgent</h2>
-<p class="text-muted">Emails that need action in the next 24–48 hours.</p>
-<div class="list-group">
-  {% for e in emails %}
-    <a href="{% url 'email_detail' e.gmail_id %}?back=urgent" class="list-group-item list-group-item-action">
-      <div class="d-flex justify-content-between">
-        <strong>{{ e.subject }}</strong>
-        {% if e.event_when %}<span class="badge bg-warning text-dark">{{ e.event_when }}</span>{% endif %}
-      </div>
-      <div class="text-muted small">{{ e.sender }}</div>
-      <div class="small mt-1">{{ e.reason }}</div>
-    </a>
-  {% empty %}<div class="text-muted">No urgent emails right now. 🎉</div>{% endfor %}
+
+<style>
+.urg-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px}
+.urg-count{display:inline-flex;align-items:center;gap:6px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600}
+.reason-chip{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;border-radius:6px;font-size:11px;padding:2px 8px;margin-top:4px;display:inline-block}
+.event-badge{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:6px;font-size:11px;padding:2px 8px;font-weight:600}
+</style>
+
+<div class="urg-header">
+  <div>
+    <h4 class="mb-1 fw-bold" style="color:#0f172a"><i class="bi bi-fire text-danger me-2"></i>Urgent</h4>
+    <p class="text-muted small mb-0">Emails that need your attention in the next 24–48 hours.</p>
+  </div>
+  {% if emails %}
+    <span class="urg-count"><i class="bi bi-exclamation-triangle-fill"></i>{{ emails|length }} urgent</span>
+  {% endif %}
 </div>
+
+<div class="card-modern p-0">
+  <ul class="elist">
+    {% for e in emails %}
+      <li class="elist-item" onclick="window.location='{% url 'email_detail' e.gmail_id %}?back=urgent'">
+        <div class="elist-avatar" style="background:linear-gradient(135deg,#ef4444,#dc2626)">{{ e.sender|slice:":1"|upper }}</div>
+        <div class="elist-body">
+          <div class="elist-sender">{{ e.sender|truncatechars:45 }}</div>
+          <div class="elist-subject">{{ e.subject|truncatechars:70 }}</div>
+          {% if e.reason %}
+            <span class="reason-chip"><i class="bi bi-lightning-fill me-1"></i>{{ e.reason|truncatechars:80 }}</span>
+          {% endif %}
+        </div>
+        <div class="elist-meta">
+          <span class="elist-time">{{ e.received_at|date:"M d, H:i" }}</span>
+          {% if e.event_when %}<span class="event-badge"><i class="bi bi-calendar-event me-1"></i>{{ e.event_when }}</span>{% endif %}
+          <span class="badge-tier tier-critical">🔥 Urgent</span>
+        </div>
+      </li>
+    {% empty %}
+      <li class="elist-empty">
+        <i class="bi bi-check-circle-fill text-success"></i>
+        <strong>No urgent emails right now</strong>
+        <p class="small mt-1 mb-0">Great! Nothing requires immediate attention.</p>
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+
 {% endblock %}
