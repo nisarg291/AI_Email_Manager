@@ -481,5 +481,46 @@ async function cmSend(){
 <style>
 @keyframes sidebarSpin{to{transform:rotate(360deg)}}
 </style>
+<script>
+/* ── Local-time converter ──
+   Replaces every data-ts="<ISO UTC string>" element with the
+   user's browser local time — matches what Gmail shows.           */
+(function(){
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  function pad(n){ return String(n).padStart(2,'0'); }
+
+  function fmtShort(d){
+    /* "Jun 2, 14:30" */
+    return MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' +
+           pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  function fmtFull(d){
+    /* "Mon, 02 Jun 2026 · 14:30" */
+    return DAYS[d.getDay()] + ', ' + pad(d.getDate()) + ' ' +
+           MONTHS[d.getMonth()] + ' ' + d.getFullYear() +
+           ' · ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  function convertAll(){
+    document.querySelectorAll('.local-ts[data-ts]').forEach(function(el){
+      var d = new Date(el.getAttribute('data-ts'));
+      if (!isNaN(d.getTime())) el.textContent = fmtShort(d);
+    });
+    document.querySelectorAll('.local-ts-full[data-ts]').forEach(function(el){
+      var d = new Date(el.getAttribute('data-ts'));
+      if (!isNaN(d.getTime())) el.textContent = fmtFull(d);
+    });
+  }
+
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', convertAll);
+  } else {
+    convertAll();
+  }
+})();
+</script>
 </body>
 </html>

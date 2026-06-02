@@ -28,7 +28,7 @@
             {% if e.reason %}<span class="reason-chip">{{ e.reason|truncatechars:80 }}</span>{% endif %}
           </div>
           <div class="elist-meta">
-            <span class="elist-time">{{ e.received_at|date:"M d, H:i" }}</span>
+            <span class="elist-time local-ts" data-ts="{{ e.received_at|date:'c' }}">{{ e.received_at|date:"M d, H:i" }}</span>
             {% if e.event_when %}<span class="event-badge"><i class="bi bi-calendar3 me-1"></i>{{ e.event_when }}</span>{% endif %}
             <span class="badge-tier tier-important">⚡ Event</span>
           </div>
@@ -54,7 +54,7 @@
             {% if e.reason %}<span class="reason-chip">{{ e.reason|truncatechars:80 }}</span>{% endif %}
           </div>
           <div class="elist-meta">
-            <span class="elist-time">{{ e.received_at|date:"M d, H:i" }}</span>
+            <span class="elist-time local-ts" data-ts="{{ e.received_at|date:'c' }}">{{ e.received_at|date:"M d, H:i" }}</span>
             {% if e.category %}<span class="badge-cat">{{ e.category.short_label }}</span>{% endif %}
             {% if e.importance >= 5 %}<span class="badge-tier tier-critical">Critical</span>
             {% else %}<span class="badge-tier tier-important">High</span>{% endif %}

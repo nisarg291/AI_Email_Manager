@@ -177,7 +177,7 @@
         </div>
         <div class="elist-meta">
           {% if e.category %}<span class="badge-cat">{{ e.category.short_label }}</span>{% endif %}
-          <span class="elist-time">{{ e.received_at|date:"M d, H:i" }}</span>
+          <span class="elist-time local-ts" data-ts="{{ e.received_at|date:'c' }}">{{ e.received_at|date:"M d, H:i" }}</span>
         </div>
       </li>
     {% empty %}

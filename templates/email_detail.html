@@ -93,7 +93,7 @@
         <div class="detail-meta">
           <div class="detail-meta-row"><strong>From</strong><span>{{ email.from }}</span></div>
           {% if email.to %}<div class="detail-meta-row"><strong>To</strong><span>{{ email.to }}</span></div>{% endif %}
-          {% if email.date %}<div class="detail-meta-row"><strong>Date</strong><span>{{ email.date|date:"D, d M Y · H:i" }}</span></div>{% endif %}
+          {% if email.date %}<div class="detail-meta-row"><strong>Date</strong><span class="local-ts-full" data-ts="{{ email.date|date:'c' }}">{{ email.date|date:"D, d M Y · H:i" }}</span></div>{% endif %}
         </div>
         {% if email.in_trash %}<span class="badge-trash"><i class="bi bi-trash"></i> In Trash</span>{% endif %}
       </div>

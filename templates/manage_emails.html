@@ -297,7 +297,7 @@
             {% elif e.action_taken == 'archived' %}<span class="text-secondary small"><i class="bi bi-archive"></i> Archived</span>
             {% else %}<span class="text-success small"><i class="bi bi-check2"></i> Labeled</span>{% endif %}
           </td>
-          <td class="text-muted small">{{ e.received_at|date:"M d, H:i" }}</td>
+          <td class="text-muted small"><span class="local-ts" data-ts="{{ e.received_at|date:'c' }}">{{ e.received_at|date:"M d, H:i" }}</span></td>
         </tr>
       {% empty %}
         <tr><td colspan="6" class="text-center text-muted py-5">

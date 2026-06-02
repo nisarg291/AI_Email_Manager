@@ -658,28 +658,46 @@ def list_messages(user, query="in:inbox", max_results=50):
     return out[:max_results]
 
 
+def _parse_msg_date(headers_lower: dict, internal_ms):
+    """Return a timezone-aware datetime. Prefers internalDate (Gmail's own
+    receipt timestamp) over the Date header, which senders can set to any value."""
+    received = None
+    # 1. Try internalDate first — always accurate, always present
+    if internal_ms:
+        try:
+            from datetime import datetime as _dt
+            received = _dt.fromtimestamp(int(internal_ms) / 1000, tz=timezone.utc)
+            return received
+        except Exception:
+            pass
+    # 2. Fallback: Date header from email
+    raw_date = headers_lower.get("date", "")
+    if raw_date:
+        try:
+            received = parsedate_to_datetime(raw_date)
+            if received and received.tzinfo is None:
+                received = received.replace(tzinfo=timezone.utc)
+        except Exception:
+            pass
+    return received
+
+
 def get_message_meta(svc, msg_id):
     msg = svc.users().messages().get(
         userId="me", id=msg_id, format="metadata",
         metadataHeaders=["Subject", "From", "Date", "List-Unsubscribe"],
     ).execute()
-    headers = {h["name"]: h["value"] for h in msg["payload"].get("headers", [])}
-    received = None
-    if headers.get("Date"):
-        try:
-            received = parsedate_to_datetime(headers["Date"])
-            if received and received.tzinfo is None:
-                received = received.replace(tzinfo=timezone.utc)
-        except Exception:
-            pass
-    name, email_addr = parseaddr(headers.get("From", ""))
-    unsub = headers.get("List-Unsubscribe", "")
+    # Lowercase all header keys for case-insensitive lookup
+    headers = {h["name"].lower(): h["value"] for h in msg["payload"].get("headers", [])}
+    received = _parse_msg_date(headers, msg.get("internalDate"))
+    name, email_addr = parseaddr(headers.get("from", ""))
+    unsub = headers.get("list-unsubscribe", "")
     m = re.search(r"<(https?://[^>]+)>", unsub)
     unsub_url = m.group(1) if m else ""
     return {
         "id": msg["id"], "thread_id": msg["threadId"],
-        "subject": headers.get("Subject", "(no subject)"),
-        "from": headers.get("From", ""), "from_email": email_addr.lower(),
+        "subject": headers.get("subject", "(no subject)"),
+        "from": headers.get("from", ""), "from_email": email_addr.lower(),
         "snippet": msg.get("snippet", ""), "received": received,
         "label_ids": msg.get("labelIds", []), "unsubscribe_url": unsub_url,
     }
@@ -711,19 +729,13 @@ def _extract_body(payload):
 def get_message_full(user, msg_id):
     svc = gmail_service(user)
     msg = svc.users().messages().get(userId="me", id=msg_id, format="full").execute()
-    headers = {h["name"]: h["value"] for h in msg["payload"].get("headers", [])}
+    headers = {h["name"].lower(): h["value"] for h in msg["payload"].get("headers", [])}
     body, kind = _extract_body(msg["payload"])
-    received = None
-    if headers.get("Date"):
-        try:
-            received = parsedate_to_datetime(headers["Date"])
-            if received and received.tzinfo is None:
-                received = received.replace(tzinfo=timezone.utc)
-        except Exception: pass
+    received = _parse_msg_date(headers, msg.get("internalDate"))
     return {
         "id": msg["id"], "thread_id": msg.get("threadId", ""),
-        "subject": headers.get("Subject", "(no subject)"),
-        "from": headers.get("From", ""), "to": headers.get("To", ""),
+        "subject": headers.get("subject", "(no subject)"),
+        "from": headers.get("from", ""), "to": headers.get("to", ""),
         "date": received, "body": body, "body_kind": kind,
         "snippet": msg.get("snippet", ""), "in_trash": "TRASH" in msg.get("labelIds", []),
     }
@@ -849,15 +861,7 @@ def list_sent_messages(user, max_results: int = 50) -> list:
             # as lowercase (to:, subject:) which Gmail preserves verbatim.
             headers = {h["name"].lower(): h["value"]
                        for h in m["payload"].get("headers", [])}
-            received = None
-            raw_date = headers.get("date", "")
-            if raw_date:
-                try:
-                    received = parsedate_to_datetime(raw_date)
-                    if received and received.tzinfo is None:
-                        received = received.replace(tzinfo=timezone.utc)
-                except Exception:
-                    pass
+            received = _parse_msg_date(headers, m.get("internalDate"))
             results.append({
                 "id":        m["id"],
                 "thread_id": m.get("threadId", ""),

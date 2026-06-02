@@ -32,7 +32,7 @@
           {% endif %}
         </div>
         <div class="elist-meta">
-          <span class="elist-time">{{ e.received_at|date:"M d, H:i" }}</span>
+          <span class="elist-time local-ts" data-ts="{{ e.received_at|date:'c' }}">{{ e.received_at|date:"M d, H:i" }}</span>
           {% if e.event_when %}<span class="event-badge"><i class="bi bi-calendar-event me-1"></i>{{ e.event_when }}</span>{% endif %}
           <span class="badge-tier tier-critical">🔥 Urgent</span>
         </div>

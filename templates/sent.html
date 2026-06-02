@@ -55,7 +55,7 @@
               <td><div class="sent-to">{{ m.to|default:"—" }}</div></td>
               <td><div class="sent-subject">{{ m.subject|default:"(no subject)" }}</div></td>
               <td class="d-none d-md-table-cell"><div class="sent-snippet">{{ m.snippet }}</div></td>
-              <td class="sent-date">{% if m.date %}{{ m.date|date:"M d, H:i" }}{% else %}—{% endif %}</td>
+              <td class="sent-date">{% if m.date %}<span class="local-ts" data-ts="{{ m.date|date:'c' }}">{{ m.date|date:"M d, H:i" }}</span>{% else %}—{% endif %}</td>
             </tr>
           {% endfor %}
         </tbody>
