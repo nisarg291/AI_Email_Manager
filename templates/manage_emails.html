@@ -103,17 +103,6 @@
 </div>
 
 <style>
-/* ── Labels summary card (above search) ── */
-.lbl-summary-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px 20px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
-.lbl-summary-card .lbl-strip{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-.lbl-summary-card .lbl-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 14px;border-radius:20px;border:1px solid #e2e8f0;background:#f8fafc;text-decoration:none;color:#374151;font-size:.82rem;font-weight:600;transition:all .15s;white-space:nowrap}
-.lbl-summary-card .lbl-chip:hover{border-color:#6366f1;color:#6366f1;background:#eef2ff}
-.lbl-summary-card .lbl-chip.active{border-color:#6366f1;background:#6366f1;color:#fff}
-.lbl-summary-card .lbl-chip .cnt{background:#e0e7ff;color:#4338ca;border-radius:20px;padding:1px 8px;font-size:.72rem;font-weight:700;min-width:22px;text-align:center}
-.lbl-summary-card .lbl-chip.active .cnt{background:rgba(255,255,255,.25);color:#fff}
-.lbl-summary-card .lbl-chip.custom{border-color:#ede9fe}
-.lbl-summary-card .lbl-chip.custom:hover{border-color:#7c3aed;color:#7c3aed;background:#f5f3ff}
-.lbl-summary-card .lbl-chip.custom .cnt{background:#ede9fe;color:#7c3aed}
 /* ── Search & filter panel ── */
 .search-panel{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px 20px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
 .search-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -139,6 +128,11 @@
 .lchip.active{background:#6366f1;color:#fff;border-color:#6366f1}
 .lchip.active-custom{background:#7c3aed;color:#fff;border-color:#7c3aed}
 .lchip-all{background:#f8fafc}
+.lchip-custom:hover{border-color:#7c3aed;color:#7c3aed;background:#f5f3ff}
+.lchip-cnt{background:#e0e7ff;color:#4338ca;border-radius:20px;padding:1px 7px;font-size:.7rem;font-weight:700;min-width:20px;text-align:center;margin-left:2px}
+.lchip.active .lchip-cnt{background:rgba(255,255,255,.25);color:#fff}
+.lchip-cnt-custom{background:#ede9fe;color:#7c3aed}
+.lchip.active-custom .lchip-cnt-custom{background:rgba(255,255,255,.25);color:#fff}
 /* ── Professional pagination ── */
 .pg-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:20px}
 .pg-info{font-size:.78rem;color:#94a3b8}
@@ -151,34 +145,6 @@
 .pg-btn.pg-edge{background:#f8fafc;font-size:.78rem;gap:4px}
 .pg-dots{display:inline-flex;align-items:center;justify-content:center;min-width:36px;height:36px;color:#94a3b8;font-size:.85rem}
 </style>
-
-{% if label_counts or custom_label_counts %}
-<div class="lbl-summary-card">
-  <div class="d-flex justify-content-between align-items-center">
-    <div>
-      <h6 class="mb-0 fw-bold"><i class="bi bi-tags-fill text-primary me-2"></i>Labels</h6>
-      <p class="text-muted small mb-0 mt-1">Click any label to browse those emails.</p>
-    </div>
-    <a href="{% url 'labels' %}" class="small text-primary text-decoration-none fw-semibold">View all →</a>
-  </div>
-  <div class="lbl-strip">
-    {% for l in label_counts %}
-      <a href="{% url 'manage_emails' %}?category={{ l.category__id }}"
-         class="lbl-chip {% if current.category == l.category__id|stringformat:'s' %}active{% endif %}">
-        <span>{{ l.category__short_label }}</span>
-        <span class="cnt">{{ l.lc }}</span>
-      </a>
-    {% endfor %}
-    {% for l in custom_label_counts %}
-      <a href="{% url 'manage_emails' %}?custom_category={{ l.custom_category__id }}"
-         class="lbl-chip custom {% if current.custom_category == l.custom_category__id|stringformat:'s' %}active{% endif %}">
-        <span>⚡ {{ l.custom_category__name }}</span>
-        <span class="cnt">{{ l.lc }}</span>
-      </a>
-    {% endfor %}
-  </div>
-</div>
-{% endif %}
 
 {% with fp="?q="|add:current.q|add:"&category="|add:current.category|add:"&importance="|add:current.importance|add:"&action="|add:current.action %}
 <div class="search-panel">
@@ -232,21 +198,21 @@
 
 <!-- Label quick-filter chips -->
 <div class="label-chips">
-  <span class="filter-label"><i class="bi bi-tags me-1"></i>Labels</span>
+  <span class="filter-label">Labels</span>
   <a href="{% url 'manage_emails' %}?q={{ current.q }}&importance={{ current.importance }}&action={{ current.action }}"
-     class="lchip lchip-all {% if not current.category %}active{% endif %}">
+     class="lchip lchip-all {% if not current.category and not current.custom_category %}active{% endif %}">
     All
   </a>
-  {% for c in categories %}
-    <a href="{% url 'manage_emails' %}?category={{ c.id }}&q={{ current.q }}&importance={{ current.importance }}&action={{ current.action }}"
-       class="lchip {% if current.category == c.id|stringformat:'s' %}active{% endif %}">
-      🏷 {{ c.short_label }}
+  {% for l in label_counts %}
+    <a href="{% url 'manage_emails' %}?category={{ l.category__id }}&q={{ current.q }}&importance={{ current.importance }}&action={{ current.action }}"
+       class="lchip {% if current.category == l.category__id|stringformat:'s' %}active{% endif %}">
+      {{ l.category__short_label }}<span class="lchip-cnt">{{ l.lc }}</span>
     </a>
   {% endfor %}
-  {% for c in custom_cats %}
-    <a href="{% url 'manage_emails' %}?custom_category={{ c.id }}&q={{ current.q }}&importance={{ current.importance }}&action={{ current.action }}"
-       class="lchip {% if current.custom_category == c.id|stringformat:'s' %}active-custom{% endif %}">
-      ⚡ {{ c.name }}
+  {% for l in custom_label_counts %}
+    <a href="{% url 'manage_emails' %}?custom_category={{ l.custom_category__id }}&q={{ current.q }}&importance={{ current.importance }}&action={{ current.action }}"
+       class="lchip lchip-custom {% if current.custom_category == l.custom_category__id|stringformat:'s' %}active-custom{% endif %}">
+      {{ l.custom_category__name }}<span class="lchip-cnt lchip-cnt-custom">{{ l.lc }}</span>
     </a>
   {% endfor %}
 </div>
