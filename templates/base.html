@@ -94,7 +94,7 @@ textarea.form-control{resize:vertical}
 .email-table tbody tr:last-child td{border-bottom:0}
 .email-row{cursor:pointer;transition:background .12s}
 .email-row:hover{background:#fafbff}
-.email-row.trashed{opacity:.55}
+.email-row.trashed{border-left:3px solid #fca5a5}
 .subject{font-weight:600;color:var(--text);font-size:13.5px}
 .sender{color:var(--muted);font-size:12px;margin-bottom:2px}
 
@@ -225,6 +225,9 @@ hr.dropdown-divider{margin:5px 0;border-color:var(--border)}
       </a>
       <a class="side-link {% if request.resolver_match.url_name == 'labels' %}active{% endif %}" href="{% url 'labels' %}">
         <i class="bi bi-tags-fill"></i> Labels
+      </a>
+      <a class="side-link {% if request.resolver_match.url_name == 'manage_labels' %}active{% endif %}" href="{% url 'manage_labels' %}">
+        <i class="bi bi-sliders"></i> Manage Labels
       </a>
 
       <div class="side-section">Manage</div>

@@ -763,6 +763,46 @@ def delete_all_trash(user):
     return total
 
 
+def delete_user_label(svc, label_name: str) -> None:
+    """Delete a Gmail label by display name if it exists."""
+    try:
+        labels = svc.users().labels().list(userId="me").execute().get("labels", [])
+        for lbl in labels:
+            if lbl.get("name") == label_name:
+                svc.users().labels().delete(userId="me", id=lbl["id"]).execute()
+                return
+    except Exception as exc:
+        print(f"delete_user_label({label_name!r}): {exc}")
+
+
+def list_all_labels(user) -> list:
+    """Return all Gmail labels (system + user) for the given user."""
+    svc = gmail_service(user)
+    return svc.users().labels().list(userId="me").execute().get("labels", [])
+
+
+def get_label_detail(user, label_id: str) -> dict:
+    """Return a single Gmail label's full details."""
+    svc = gmail_service(user)
+    return svc.users().labels().get(userId="me", id=label_id).execute()
+
+
+def update_label_visibility(user, label_id: str, list_visibility: str | None = None,
+                            message_visibility: str | None = None) -> dict:
+    """
+    Patch a Gmail label's visibility settings.
+    list_visibility: 'labelShow' | 'labelShowIfUnread' | 'labelHide'
+    message_visibility: 'show' | 'hide'
+    """
+    svc = gmail_service(user)
+    body: dict = {}
+    if list_visibility is not None:
+        body["labelListVisibility"] = list_visibility
+    if message_visibility is not None:
+        body["messageListVisibility"] = message_visibility
+    return svc.users().labels().patch(userId="me", id=label_id, body=body).execute()
+
+
 def delete_emails_query(user, query: str, max_results: int = 10000) -> int:
     """Permanently delete all Gmail messages matching `query`. Returns count deleted."""
     svc = gmail_service(user)

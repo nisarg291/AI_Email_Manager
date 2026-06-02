@@ -530,15 +530,35 @@ def starred_view(request):
 
 @login_required
 def subscriptions_view(request):
-    rows = (ClassifiedEmail.objects.filter(user=request.user)
-            .exclude(unsubscribe_url="")
-            .values("sender", "sender_email", "unsubscribe_url")
-            .annotate(count=Count("id"), last_received=Max("received_at"))
-            .order_by("-count")[:100])
+    # Deduplicate by sender_email: one row per unique sending address
+    grouped = (ClassifiedEmail.objects
+               .filter(user=request.user)
+               .exclude(sender_email="")
+               .exclude(unsubscribe_url="")
+               .values("sender_email")
+               .annotate(count=Count("id"), last_received=Max("received_at"))
+               .order_by("-count")[:200])
+
+    enriched = []
+    for row in grouped:
+        latest = (ClassifiedEmail.objects
+                  .filter(user=request.user, sender_email=row["sender_email"])
+                  .exclude(unsubscribe_url="")
+                  .order_by("-received_at")
+                  .values("sender", "unsubscribe_url")
+                  .first())
+        enriched.append({
+            "sender_email":    row["sender_email"],
+            "count":           row["count"],
+            "last_received":   row["last_received"],
+            "sender":          latest["sender"] if latest else row["sender_email"],
+            "unsubscribe_url": latest["unsubscribe_url"] if latest else "",
+        })
+
     _sub_profile, _ = UserProfile.objects.get_or_create(
         user=request.user, defaults={"full_name": request.user.get_full_name()}
     )
-    return render(request, "subscriptions.html", {"rows": rows,
+    return render(request, "subscriptions.html", {"rows": enriched,
                                                   "blocked": _sub_profile.blocked_set()})
 
 
@@ -838,7 +858,7 @@ def categories_view(request):
                     if created:
                         try:
                             svc = services.gmail_service(request.user)
-                            services.ensure_label(svc, f"AI/Custom/{name}")
+                            services.ensure_label(svc, f"Custom/{name}")
                         except Exception:
                             pass
                         messages.success(request, f'Custom label "{name}" added.')
@@ -850,18 +870,34 @@ def categories_view(request):
         if action == "delete_custom":
             cid = request.POST.get("custom_id")
             if cid and cid.isdigit():
-                UserCustomCategory.objects.filter(user=request.user, pk=cid).delete()
-                messages.success(request, "Custom label deleted.")
+                cc = UserCustomCategory.objects.filter(user=request.user, pk=cid).first()
+                if cc:
+                    label_name = f"Custom/{cc.name}"
+                    cc.delete()
+                    try:
+                        svc = services.gmail_service(request.user)
+                        services.delete_user_label(svc, label_name)
+                    except Exception:
+                        pass
+                    messages.success(request, "Custom label deleted.")
             return redirect("categories")
 
         # ── Remove a system category from user's active set ───────
         if action == "remove_cat":
             pref_id = request.POST.get("pref_id")
             if pref_id and pref_id.isdigit():
-                UserCategoryPreference.objects.filter(
+                pref = UserCategoryPreference.objects.select_related("category").filter(
                     user=request.user, pk=pref_id
-                ).delete()
-                messages.success(request, "Category removed from your active set.")
+                ).first()
+                if pref:
+                    label_name = pref.category.short_label
+                    pref.delete()
+                    try:
+                        svc = services.gmail_service(request.user)
+                        services.delete_user_label(svc, label_name)
+                    except Exception:
+                        pass
+                    messages.success(request, "Category removed from your active set.")
             return redirect("categories")
 
         # ── Add a system category from the pool ───────────────────
@@ -877,7 +913,7 @@ def categories_view(request):
                     if created:
                         try:
                             svc = services.gmail_service(request.user)
-                            services.ensure_label(svc, f"AI/{cat.short_label}")
+                            services.ensure_label(svc, cat.short_label)
                         except Exception:
                             pass
                         messages.success(request, f'"{cat.name}" added to your labels.')
@@ -1130,3 +1166,49 @@ def send_reply_view(request, msg_id):
         return JsonResponse({"success": True, "message": "Reply sent successfully!"})
     except Exception as exc:
         return JsonResponse({"error": str(exc)}, status=500)
+
+
+@login_required
+def manage_labels_view(request):
+    """
+    List all Gmail labels with show/hide toggles.
+    POST (AJAX): patch a single label's visibility.
+    """
+    if request.method == "POST":
+        label_id = request.POST.get("label_id", "").strip()
+        list_vis = request.POST.get("list_visibility") or None
+        msg_vis  = request.POST.get("message_visibility") or None
+        if not label_id:
+            return JsonResponse({"ok": False, "error": "Missing label_id"}, status=400)
+        valid_list = {"labelShow", "labelShowIfUnread", "labelHide", None}
+        valid_msg  = {"show", "hide", None}
+        if list_vis not in valid_list or msg_vis not in valid_msg:
+            return JsonResponse({"ok": False, "error": "Invalid value"}, status=400)
+        try:
+            services.update_label_visibility(request.user, label_id, list_vis, msg_vis)
+            return JsonResponse({"ok": True})
+        except Exception as exc:
+            return JsonResponse({"ok": False, "error": str(exc)}, status=500)
+
+    labels_error  = None
+    system_labels = []
+    user_labels   = []
+    try:
+        all_labels  = services.list_all_labels(request.user)
+        system_labels = [l for l in all_labels if l.get("type") == "system"]
+        raw_user    = [l for l in all_labels if l.get("type") == "user"]
+        enriched    = []
+        for lbl in raw_user:
+            try:
+                enriched.append(services.get_label_detail(request.user, lbl["id"]))
+            except Exception:
+                enriched.append(lbl)
+        user_labels = enriched
+    except Exception as exc:
+        labels_error = str(exc)
+
+    return render(request, "manage_labels.html", {
+        "system_labels": system_labels,
+        "user_labels":   user_labels,
+        "labels_error":  labels_error,
+    })

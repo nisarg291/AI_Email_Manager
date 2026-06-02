@@ -22,7 +22,12 @@
     <h4 class="mb-1 fw-bold" style="color:#0f172a"><i class="bi bi-tags-fill text-primary me-2"></i>Labels</h4>
     <p class="text-muted small mb-0">Browse emails by AI-assigned category labels.</p>
   </div>
-  <span class="lbl-total"><i class="bi bi-envelope me-1"></i>{{ total }} classified</span>
+  <div style="display:flex;gap:10px;align-items:center">
+    <span class="lbl-total"><i class="bi bi-envelope me-1"></i>{{ total }} classified</span>
+    <a href="{% url 'manage_labels' %}" style="font-size:.8rem;background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;border-radius:8px;padding:5px 13px;text-decoration:none;white-space:nowrap">
+      <i class="bi bi-sliders me-1"></i>Manage Labels
+    </a>
+  </div>
 </div>
 
 <div class="lbl-card">

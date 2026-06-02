@@ -1,0 +1,182 @@
+{% extends "base.html" %}{% block title %}Manage Labels{% endblock %}
+{% block topbar_title %}Manage Labels{% endblock %}
+{% block body %}
+
+<style>
+.ml-header{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:24px}
+.ml-section-title{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;padding:10px 18px 6px;border-bottom:1px solid #f1f5f9}
+.ml-table{width:100%;border-collapse:collapse}
+.ml-table td,.ml-table th{padding:11px 18px;border-bottom:1px solid #f1f5f9;font-size:.87rem;vertical-align:middle}
+.ml-table th{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;background:#f8fafc}
+.ml-table tr:last-child td{border-bottom:0}
+.ml-label-name{font-weight:600;color:#0f172a;display:flex;align-items:center;gap:8px}
+.ml-label-icon{width:10px;height:10px;border-radius:2px;background:#6366f1;flex-shrink:0}
+.ml-vis-btns{display:flex;gap:4px;align-items:center}
+.ml-vis-btn{font-size:.75rem;padding:3px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#374151;cursor:pointer;transition:all .15s;white-space:nowrap}
+.ml-vis-btn:hover{border-color:#6366f1;color:#6366f1}
+.ml-vis-btn.active-show{background:#eff6ff;color:#2563eb;border-color:#bfdbfe;font-weight:600}
+.ml-vis-btn.active-unread{background:#fefce8;color:#ca8a04;border-color:#fef08a;font-weight:600}
+.ml-vis-btn.active-hide{background:#f1f5f9;color:#94a3b8;border-color:#cbd5e1;font-weight:600}
+.ml-msg-btn{font-size:.75rem;padding:3px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#374151;cursor:pointer;transition:all .15s;white-space:nowrap}
+.ml-msg-btn:hover{border-color:#6366f1;color:#6366f1}
+.ml-msg-btn.active-show{background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;font-weight:600}
+.ml-msg-btn.active-hide{background:#f1f5f9;color:#94a3b8;border-color:#cbd5e1;font-weight:600}
+.ml-sys-row td{color:#64748b}
+.ml-sys-row .ml-label-icon{background:#94a3b8}
+.ml-toast{position:fixed;bottom:24px;right:24px;background:#0f172a;color:#fff;padding:10px 18px;border-radius:10px;font-size:.83rem;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9999}
+.ml-toast.show{opacity:1}
+.card-modern{background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+</style>
+
+<div class="ml-header">
+  <div>
+    <h4 class="mb-1 fw-bold" style="color:#0f172a"><i class="bi bi-tags text-primary me-2"></i>Manage Labels</h4>
+    <p class="text-muted small mb-0">Control which labels appear in Gmail's sidebar and on messages.</p>
+  </div>
+  <a href="{% url 'labels' %}" class="btn btn-sm" style="background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;border-radius:8px;padding:6px 14px;text-decoration:none">
+    <i class="bi bi-arrow-left me-1"></i> Back to Labels
+  </a>
+</div>
+
+{% if labels_error %}
+  <div class="alert alert-danger mb-4"><i class="bi bi-exclamation-triangle-fill me-2"></i>{{ labels_error }}</div>
+{% endif %}
+
+{% if user_labels %}
+<div class="card-modern mb-4">
+  <div class="ml-section-title">Your Labels <span class="text-muted fw-normal">({{ user_labels|length }})</span></div>
+  <table class="ml-table">
+    <thead>
+      <tr>
+        <th style="width:40%">Label</th>
+        <th>Show in label list</th>
+        <th>Show on messages</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for lbl in user_labels %}
+      <tr data-label-id="{{ lbl.id }}">
+        <td>
+          <div class="ml-label-name">
+            <span class="ml-label-icon"></span>
+            {{ lbl.name }}
+          </div>
+        </td>
+        <td>
+          <div class="ml-vis-btns">
+            <button class="ml-vis-btn {% if lbl.labelListVisibility == 'labelShow' or not lbl.labelListVisibility %}active-show{% endif %}"
+                    onclick="setListVis(this,'{{ lbl.id }}','labelShow')" title="Show in sidebar">show</button>
+            <button class="ml-vis-btn {% if lbl.labelListVisibility == 'labelShowIfUnread' %}active-unread{% endif %}"
+                    onclick="setListVis(this,'{{ lbl.id }}','labelShowIfUnread')" title="Show only when there are unread messages">if unread</button>
+            <button class="ml-vis-btn {% if lbl.labelListVisibility == 'labelHide' %}active-hide{% endif %}"
+                    onclick="setListVis(this,'{{ lbl.id }}','labelHide')" title="Hide from sidebar">hide</button>
+          </div>
+        </td>
+        <td>
+          <div class="ml-vis-btns">
+            <button class="ml-msg-btn {% if lbl.messageListVisibility == 'show' or not lbl.messageListVisibility %}active-show{% endif %}"
+                    onclick="setMsgVis(this,'{{ lbl.id }}','show')" title="Show label chip on messages">show</button>
+            <button class="ml-msg-btn {% if lbl.messageListVisibility == 'hide' %}active-hide{% endif %}"
+                    onclick="setMsgVis(this,'{{ lbl.id }}','hide')" title="Hide label chip on messages">hide</button>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if system_labels %}
+<div class="card-modern mb-4">
+  <div class="ml-section-title">System Labels</div>
+  <table class="ml-table">
+    <thead>
+      <tr>
+        <th style="width:40%">Label</th>
+        <th colspan="2" style="color:#94a3b8">Info only — managed by Gmail</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for lbl in system_labels %}
+      <tr class="ml-sys-row">
+        <td>
+          <div class="ml-label-name">
+            <span class="ml-label-icon" style="background:#cbd5e1"></span>
+            {{ lbl.name }}
+          </div>
+        </td>
+        <td>
+          <span style="font-size:.78rem;color:#94a3b8">
+            {% if lbl.labelListVisibility == 'labelHide' %}hidden{% else %}visible{% endif %}
+          </span>
+        </td>
+        <td>
+          <span style="font-size:.78rem;color:#94a3b8">
+            {% if lbl.messageListVisibility == 'hide' %}hidden{% else %}visible{% endif %}
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if not user_labels and not labels_error %}
+  <div class="card-modern p-5 text-center">
+    <i class="bi bi-tags" style="font-size:36px;color:#cbd5e1;display:block;margin-bottom:12px"></i>
+    <strong style="color:#64748b">No labels yet</strong>
+    <p class="small text-muted mt-1 mb-0">Run AI classification first to create labels in Gmail.</p>
+  </div>
+{% endif %}
+
+<div class="ml-toast" id="mlToast"></div>
+
+<script>
+const CSRF = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+
+function showToast(msg, ok) {
+  const t = document.getElementById('mlToast');
+  t.textContent = msg;
+  t.style.background = ok ? '#0f172a' : '#dc2626';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+async function patchLabel(labelId, payload) {
+  const fd = new FormData();
+  fd.append('label_id', labelId);
+  Object.entries(payload).forEach(([k,v]) => fd.append(k, v));
+  const r = await fetch('', {method:'POST', headers:{'X-CSRFToken': CSRF}, body: fd});
+  return r.json();
+}
+
+function clearGroup(btns, prefix) {
+  btns.forEach(b => {
+    b.classList.remove(`active-${prefix}show`, `active-${prefix}unread`, `active-${prefix}hide`);
+  });
+}
+
+async function setListVis(btn, labelId, value) {
+  const group = btn.closest('.ml-vis-btns').querySelectorAll('.ml-vis-btn');
+  clearGroup(Array.from(group), '');
+  const classMap = {labelShow:'active-show', labelShowIfUnread:'active-unread', labelHide:'active-hide'};
+  btn.classList.add(classMap[value]);
+  const res = await patchLabel(labelId, {list_visibility: value});
+  showToast(res.ok ? 'Saved' : (res.error || 'Error'), res.ok);
+  if (!res.ok) { clearGroup(Array.from(group), ''); btn.classList.remove(classMap[value]); }
+}
+
+async function setMsgVis(btn, labelId, value) {
+  const group = btn.closest('.ml-vis-btns').querySelectorAll('.ml-msg-btn');
+  clearGroup(Array.from(group), '');
+  const classMap = {show:'active-show', hide:'active-hide'};
+  btn.classList.add(classMap[value]);
+  const res = await patchLabel(labelId, {message_visibility: value});
+  showToast(res.ok ? 'Saved' : (res.error || 'Error'), res.ok);
+  if (!res.ok) { clearGroup(Array.from(group), ''); btn.classList.remove(classMap[value]); }
+}
+</script>
+
+{% endblock %}
