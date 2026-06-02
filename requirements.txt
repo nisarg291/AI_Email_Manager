@@ -5,3 +5,13 @@ google-auth-oauthlib>=1.2
 google-api-python-client>=2.130
 requests>=2.32
 openai>=1.40.0
+Django
+google-api-python-client
+google-auth
+google-auth-oauthlib
+openai
+openpyxl
+python-dotenv
+requests
+celery
+redis
