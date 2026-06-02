@@ -1069,6 +1069,17 @@ def manage_emails(request):
     profile_obj, _ = UserProfile.objects.get_or_create(
         user=request.user, defaults={"full_name": request.user.get_full_name()}
     )
+    label_counts = (ClassifiedEmail.objects
+                    .filter(user=request.user, category__isnull=False)
+                    .values("category__id", "category__short_label", "category__name")
+                    .annotate(lc=Count("id"))
+                    .order_by("-lc")[:20])
+    custom_label_counts = (ClassifiedEmail.objects
+                           .filter(user=request.user, custom_category__isnull=False)
+                           .values("custom_category__id", "custom_category__name")
+                           .annotate(lc=Count("id"))
+                           .order_by("-lc")[:5])
+
     return render(request, "manage_emails.html", {
         "page": page, "categories": categories, "custom_cats": custom_cats,
         "scopes": services.SCOPE_QUERIES,
@@ -1081,6 +1092,8 @@ def manage_emails(request):
         "total_count": total_count,
         "page_range":  page_range,
         "num_pages":   num_pgs,
+        "label_counts":        label_counts,
+        "custom_label_counts": custom_label_counts,
     })
 
 
