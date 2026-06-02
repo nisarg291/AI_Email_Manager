@@ -29,6 +29,15 @@
 .ml-toast{position:fixed;bottom:24px;right:24px;background:#0f172a;color:#fff;padding:10px 18px;border-radius:10px;font-size:.83rem;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9999}
 .ml-toast.show{opacity:1}
 .card-modern{background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.ml-table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+@media(max-width:768px){
+  .card-modern{overflow:visible}
+  .ml-table-scroll{border-radius:0 0 14px 14px}
+  .ml-table{min-width:520px}
+  .ml-section-title{font-size:.68rem}
+  .ml-header{flex-direction:column;align-items:flex-start}
+}
 </style>
 
 <div class="ml-header">
@@ -48,7 +57,7 @@
 {% if user_labels %}
 <div class="card-modern mb-4">
   <div class="ml-section-title">Your Labels <span class="text-muted fw-normal">({{ user_labels|length }})</span></div>
-  <table class="ml-table">
+  <div class="ml-table-scroll"><table class="ml-table">
     <thead>
       <tr>
         <th style="width:35%">Label</th>
@@ -93,14 +102,14 @@
       </tr>
       {% endfor %}
     </tbody>
-  </table>
+  </table></div>
 </div>
 {% endif %}
 
 {% if system_labels %}
 <div class="card-modern mb-4">
   <div class="ml-section-title">System Labels</div>
-  <table class="ml-table">
+  <div class="ml-table-scroll"><table class="ml-table">
     <thead>
       <tr>
         <th style="width:40%">Label</th>
@@ -129,7 +138,7 @@
       </tr>
       {% endfor %}
     </tbody>
-  </table>
+  </table></div>
 </div>
 {% endif %}
 
