@@ -1022,22 +1022,7 @@ Respond ONLY with valid JSON:
         # =====================================================
         # AUTO CLEANUP FOR OLD EMAILS
         # =====================================================
-        if cat and meta["received"]:
-
-            age_days = (
-                datetime.now(timezone.utc)
-                - meta["received"]
-            ).days
-
-            if (
-                cat.default_action == "trash"
-                or (
-                    cat.default_action == "archive"
-                    and age_days >= 30
-                    and importance <= 2
-                )
-            ):
-                final_action = "trash"
+        # (auto-cleanup block removed — default_action field does not exist)
 
         # =====================================================
         # LABELS
@@ -1047,37 +1032,24 @@ Respond ONLY with valid JSON:
         try:
 
             # Main category label
-            if cat:
-                label_ids.append(
-                    ensure_label(svc, cat.short_label)
-                )
+            if cat and cat.slug != "other":
+                label_ids.append(ensure_label(svc, f"AI/{cat.short_label}"))
+            else:
+                label_ids.append(ensure_label(svc, "AI/Other"))
 
             # MyOrg label
-            if (
-                org_domain
-                and sender_domain == org_domain
-                and myorg_cat
-            ):
-                label_ids.append(
-                    ensure_label(svc, myorg_cat.short_label)
-                )
+            if org_domain and sender_domain == org_domain and myorg_cat:
+                label_ids.append(ensure_label(svc, f"AI/{myorg_cat.short_label}"))
 
             # Urgent label
             if is_urgent and urgent_cat:
-                label_ids.append(
-                    ensure_label(svc, urgent_cat.short_label)
-                )
+                label_ids.append(ensure_label(svc, f"AI/{urgent_cat.short_label}"))
 
-            # Optional tier labels
+            # Tier labels
             if user_tier == "critical":
-                label_ids.append(
-                    ensure_label(svc, "Critical")
-                )
-
+                label_ids.append(ensure_label(svc, "AI/⭐ Critical"))
             elif user_tier == "important":
-                label_ids.append(
-                    ensure_label(svc, "Important")
-                )
+                label_ids.append(ensure_label(svc, "AI/⭐ Important"))
 
             apply_labels(
                 svc,
@@ -1239,7 +1211,9 @@ def live_classify_task(user_id: int) -> None:
         if not user.profile.live_classification:
             stop_live_thread(user_id)
             return
-        classify_emails(user, scope="live")
+        # Create a live job and run it inline (we're already inside a Q worker)
+        job = ClassificationJob.objects.create(user=user, scope="live", status="pending")
+        _run_job(user_id, job.pk)
     except Exception as exc:
         print(f"[live_classify_task uid={user_id}] {exc}")
 
@@ -1254,9 +1228,10 @@ def start_batch_job(user, scope: str) -> "ClassificationJob":
     job = ClassificationJob.objects.create(user=user, scope=scope, status="pending")
     async_task(
         "accounts.services._run_job",
-        user.pk, job.pk,
-        task_name=f"classify-{user.pk}-{job.pk}",
-        q_options={"timeout": 1800},
+        user.pk,
+        job.pk,
+        timeout=1800,
+        group=f"classify-{user.pk}",
     )
     return job
 
