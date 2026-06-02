@@ -425,7 +425,9 @@ def toggle_live(request):
     if not _has_gmail_scope(request.user):
         messages.error(request, "Please re-connect your Google account to enable Gmail access.")
         return redirect("manage_emails")
-    profile = request.user.profile
+    profile, _ = UserProfile.objects.get_or_create(
+        user=request.user, defaults={"full_name": request.user.get_full_name()}
+    )
     profile.live_classification = not profile.live_classification
     profile.save(update_fields=["live_classification"])
     if profile.live_classification:
@@ -530,13 +532,18 @@ def subscriptions_view(request):
             .values("sender", "sender_email", "unsubscribe_url")
             .annotate(count=Count("id"))
             .order_by("-count")[:100])
+    _sub_profile, _ = UserProfile.objects.get_or_create(
+        user=request.user, defaults={"full_name": request.user.get_full_name()}
+    )
     return render(request, "subscriptions.html", {"rows": rows,
-                                                  "blocked": request.user.profile.blocked_set()})
+                                                  "blocked": _sub_profile.blocked_set()})
 
 
 @login_required
 def subscription_block(request, sender_email):
-    profile = request.user.profile
+    profile, _ = UserProfile.objects.get_or_create(
+        user=request.user, defaults={"full_name": request.user.get_full_name()}
+    )
     blocked = profile.blocked_senders
     if sender_email.lower() not in profile.blocked_set():
         profile.blocked_senders = (blocked + "\n" + sender_email).strip()
@@ -669,11 +676,17 @@ def onboarding_step3(request):
 
         profile.onboarded = True
         profile.save(update_fields=["onboarded"])
-        # Pre-create Gmail labels for the user's active categories in the background
+        # Pre-create Gmail labels and kick off first batch classification
         import threading as _t
         _t.Thread(target=services.ensure_user_labels, args=(request.user,), daemon=True).start()
-        messages.success(request, "All set! Your labels are being created in Gmail.")
-        return redirect("dashboard")
+        # Auto-start a Latest 200 batch job so the inbox is classified right away
+        try:
+            job = services.start_batch_job(request.user, "latest200")
+            messages.success(request, "All set! Classifying your inbox now — check Manage Emails to see progress.")
+            return redirect(f"{reverse('manage_emails')}?job={job.pk}")
+        except Exception:
+            messages.success(request, "All set! Your labels are being created in Gmail.")
+            return redirect("dashboard")
 
     # GET: ask AI for relevant categories
     relevant = services.suggest_relevant_categories(profile, max_count=20)
@@ -896,10 +909,13 @@ def manage_emails(request):
     if active_job_id and active_job_id.isdigit():
         active_job = ClassificationJob.objects.filter(user=request.user, pk=active_job_id).first()
 
+    profile_obj, _ = UserProfile.objects.get_or_create(
+        user=request.user, defaults={"full_name": request.user.get_full_name()}
+    )
     return render(request, "manage_emails.html", {
         "page": page, "categories": categories, "custom_cats": custom_cats,
         "scopes": services.SCOPE_QUERIES,
-        "live": request.user.profile.live_classification,
+        "live": profile_obj.live_classification,
         "live_running": services.is_live_running(request.user.pk),
         "current": {"category": cat_id, "importance": imp, "action": action,
                     "q": q, "custom_category": cust_id},
