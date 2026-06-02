@@ -26,6 +26,53 @@
 .email-row .chk-col{vertical-align:middle}
 /* stop row-click when clicking checkbox cell */
 .chk-cell{display:flex;align-items:center;justify-content:center;height:100%;padding:0 4px}
+
+/* ── Mobile card layout ── */
+@media(max-width:768px){
+  /* Convert table to block so rows can flex */
+  .email-table,.email-table tbody,.email-table tr{display:block;width:100%}
+  .email-table thead{display:none}
+
+  /* Each row = horizontal card */
+  .email-table tbody tr{
+    display:flex;align-items:center;gap:10px;
+    padding:11px 14px;border-bottom:1px solid #f1f5f9;
+    cursor:pointer;
+  }
+  .email-table tbody tr:last-child{border-bottom:0}
+
+  /* Hide all cells by default */
+  .email-table tbody td{display:none;padding:0;border:0;font-size:13px}
+
+  /* Checkbox cell */
+  .email-table tbody td:nth-child(1){
+    display:flex;flex-shrink:0;align-items:center;
+    width:24px;padding-left:0!important;padding-right:0!important
+  }
+  .chk-cell{padding:0}
+
+  /* Sender + Subject cell — fills remaining space */
+  .email-table tbody td:nth-child(2){
+    display:block;flex:1;min-width:0;overflow:hidden
+  }
+  .email-table tbody td:nth-child(2) .sender{
+    font-weight:600;font-size:13px;color:#0f172a;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    max-width:100%
+  }
+  .email-table tbody td:nth-child(2) .subject{
+    font-size:12px;color:#64748b;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    max-width:100%;margin-top:1px
+  }
+
+  /* Date cell — pinned to right, never wraps */
+  .email-table tbody td:nth-child(6){
+    display:block;flex-shrink:0;
+    font-size:11px;color:#94a3b8;white-space:nowrap;
+    text-align:right
+  }
+}
 </style>
 
 {% if needs_reauth %}
