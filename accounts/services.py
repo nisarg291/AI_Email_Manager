@@ -845,23 +845,27 @@ def list_sent_messages(user, max_results: int = 50) -> list:
                 userId="me", id=msg["id"], format="metadata",
                 metadataHeaders=["Subject", "From", "To", "Date"],
             ).execute()
-            headers = {h["name"]: h["value"] for h in m["payload"].get("headers", [])}
+            # Case-insensitive lookup — Python's email library serialises headers
+            # as lowercase (to:, subject:) which Gmail preserves verbatim.
+            headers = {h["name"].lower(): h["value"]
+                       for h in m["payload"].get("headers", [])}
             received = None
-            if headers.get("Date"):
+            raw_date = headers.get("date", "")
+            if raw_date:
                 try:
-                    received = parsedate_to_datetime(headers["Date"])
+                    received = parsedate_to_datetime(raw_date)
                     if received and received.tzinfo is None:
                         received = received.replace(tzinfo=timezone.utc)
                 except Exception:
                     pass
             results.append({
-                "id":       m["id"],
+                "id":        m["id"],
                 "thread_id": m.get("threadId", ""),
-                "subject":  headers.get("Subject", "(no subject)"),
-                "to":       headers.get("To", ""),
-                "from":     headers.get("From", ""),
-                "date":     received,
-                "snippet":  m.get("snippet", ""),
+                "subject":   headers.get("subject", "") or "(no subject)",
+                "to":        headers.get("to", ""),
+                "from":      headers.get("from", ""),
+                "date":      received,
+                "snippet":   m.get("snippet", ""),
             })
         except Exception:
             continue
@@ -915,12 +919,14 @@ def generate_ai_summary(emails_data: list, profile_text: str = "") -> list:
 def send_new_email(user, to_email: str, subject: str, body: str):
     """Send a brand-new email (no thread) via Gmail API on behalf of `user`."""
     import base64
-    from email.mime.text import MIMEText
+    from email.message import EmailMessage
     svc = gmail_service(user)
-    mime = MIMEText(body, "plain", "utf-8")
-    mime["to"] = to_email
-    mime["subject"] = subject
-    raw = base64.urlsafe_b64encode(mime.as_bytes()).decode()
+    msg = EmailMessage()
+    msg["To"]      = to_email
+    msg["From"]    = user.email
+    msg["Subject"] = subject or "(no subject)"
+    msg.set_content(body)
+    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     svc.users().messages().send(userId="me", body={"raw": raw}).execute()
 
 
@@ -960,14 +966,16 @@ def generate_ai_compose(to_email: str, intent: str,
 
 
 def send_email_reply(user, to_email: str, subject: str, body: str, thread_id: str = None):
-    """Send an email via Gmail API on behalf of `user`."""
+    """Send an email reply via Gmail API on behalf of `user`."""
     import base64
-    from email.mime.text import MIMEText
+    from email.message import EmailMessage
     svc = gmail_service(user)
-    mime = MIMEText(body, "plain", "utf-8")
-    mime["to"] = to_email
-    mime["subject"] = subject
-    raw = base64.urlsafe_b64encode(mime.as_bytes()).decode()
+    msg = EmailMessage()
+    msg["To"]      = to_email
+    msg["From"]    = user.email
+    msg["Subject"] = subject or "(no subject)"
+    msg.set_content(body)
+    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     msg_body: dict = {"raw": raw}
     if thread_id:
         msg_body["threadId"] = thread_id
