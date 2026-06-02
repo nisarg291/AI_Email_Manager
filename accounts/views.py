@@ -1175,11 +1175,23 @@ def manage_labels_view(request):
     POST (AJAX): patch a single label's visibility.
     """
     if request.method == "POST":
+        action   = request.POST.get("action", "update_visibility")
         label_id = request.POST.get("label_id", "").strip()
-        list_vis = request.POST.get("list_visibility") or None
-        msg_vis  = request.POST.get("message_visibility") or None
         if not label_id:
             return JsonResponse({"ok": False, "error": "Missing label_id"}, status=400)
+
+        # ── Delete label from Gmail ───────────────────────────────
+        if action == "delete_label":
+            try:
+                svc = services.gmail_service(request.user)
+                svc.users().labels().delete(userId="me", id=label_id).execute()
+                return JsonResponse({"ok": True})
+            except Exception as exc:
+                return JsonResponse({"ok": False, "error": str(exc)}, status=500)
+
+        # ── Update visibility ─────────────────────────────────────
+        list_vis = request.POST.get("list_visibility") or None
+        msg_vis  = request.POST.get("message_visibility") or None
         valid_list = {"labelShow", "labelShowIfUnread", "labelHide", None}
         valid_msg  = {"show", "hide", None}
         if list_vis not in valid_list or msg_vis not in valid_msg:

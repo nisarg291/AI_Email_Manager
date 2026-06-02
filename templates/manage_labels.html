@@ -23,6 +23,9 @@
 .ml-msg-btn.active-hide{background:#f1f5f9;color:#94a3b8;border-color:#cbd5e1;font-weight:600}
 .ml-sys-row td{color:#64748b}
 .ml-sys-row .ml-label-icon{background:#94a3b8}
+.ml-del-btn{background:transparent;border:1px solid #fecaca;color:#f87171;border-radius:7px;padding:4px 9px;cursor:pointer;font-size:.8rem;transition:all .15s}
+.ml-del-btn:hover{background:#fef2f2;color:#dc2626;border-color:#fca5a5}
+.ml-del-btn:disabled{opacity:.4;cursor:not-allowed}
 .ml-toast{position:fixed;bottom:24px;right:24px;background:#0f172a;color:#fff;padding:10px 18px;border-radius:10px;font-size:.83rem;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9999}
 .ml-toast.show{opacity:1}
 .card-modern{background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
@@ -48,9 +51,10 @@
   <table class="ml-table">
     <thead>
       <tr>
-        <th style="width:40%">Label</th>
+        <th style="width:35%">Label</th>
         <th>Show in label list</th>
         <th>Show on messages</th>
+        <th style="width:80px">Remove</th>
       </tr>
     </thead>
     <tbody>
@@ -79,6 +83,12 @@
             <button class="ml-msg-btn {% if lbl.messageListVisibility == 'hide' %}active-hide{% endif %}"
                     onclick="setMsgVis(this,'{{ lbl.id }}','hide')" title="Hide label chip on messages">hide</button>
           </div>
+        </td>
+        <td>
+          <button class="ml-del-btn" onclick="removeLabel(this,'{{ lbl.id }}','{{ lbl.name|escapejs }}')"
+                  title="Delete this label from Gmail">
+            <i class="bi bi-trash3"></i>
+          </button>
         </td>
       </tr>
       {% endfor %}
@@ -176,6 +186,28 @@ async function setMsgVis(btn, labelId, value) {
   const res = await patchLabel(labelId, {message_visibility: value});
   showToast(res.ok ? 'Saved' : (res.error || 'Error'), res.ok);
   if (!res.ok) { clearGroup(Array.from(group), ''); btn.classList.remove(classMap[value]); }
+}
+
+async function removeLabel(btn, labelId, labelName) {
+  if (!confirm(`Remove label "${labelName}" from Gmail?\n\nThis will also remove the label from all emails that have it. This cannot be undone.`)) return;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+  const fd = new FormData();
+  fd.append('label_id', labelId);
+  fd.append('action', 'delete_label');
+  const r = await fetch('', {method:'POST', headers:{'X-CSRFToken': CSRF}, body: fd});
+  const res = await r.json();
+  if (res.ok) {
+    const row = btn.closest('tr');
+    row.style.transition = 'opacity .3s';
+    row.style.opacity = '0';
+    setTimeout(() => row.remove(), 300);
+    showToast(`"${labelName}" removed from Gmail`, true);
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-trash3"></i>';
+    showToast(res.error || 'Failed to remove label', false);
+  }
 }
 </script>
 
