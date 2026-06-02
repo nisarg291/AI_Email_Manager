@@ -1234,22 +1234,41 @@ def generate_summary_view(request):
     if time_range == "24h":
         since = now - timedelta(hours=24)
         label = "Last 24 hours"
+        fetch_limit = 60
     elif time_range == "week":
         since = now - timedelta(days=7)
         label = "Last 7 days"
+        fetch_limit = 80
     elif time_range == "month":
         since = now - timedelta(days=30)
         label = "Last 30 days"
+        fetch_limit = 120
     else:
         since = now - timedelta(hours=24)
         label = "Last 24 hours"
+        fetch_limit = 60
+
+    # Security and spam category slugs — excluded from summary
+    _EXCLUDE_SLUGS = {
+        "two_fa", "login_alert", "device_alert", "password_reset",
+        "breach", "security_report", "access_request", "compliance",
+        "phishing", "financial_scam", "fake_job", "malware",
+        "spoofing", "bulk_spam", "adult_gambling",
+    }
+
     emails_qs = (ClassifiedEmail.objects
                  .filter(user=request.user, received_at__gte=since, importance__gte=3)
+                 .exclude(category__slug__in=_EXCLUDE_SLUGS)
                  .select_related("category", "custom_category")
-                 .order_by("-is_urgent", "-importance", "-received_at")[:40])
+                 .order_by("-is_urgent", "-importance", "-received_at")[:fetch_limit])
+
+    profile = getattr(request.user, "profile", None)
+    profile_text = services._profile_blurb(profile)
+
     emails_data = []
     for e in emails_qs:
         emails_data.append({
+            "gmail_id":   e.gmail_id,
             "from":       e.sender,
             "subject":    e.subject,
             "importance": e.importance,
@@ -1258,16 +1277,21 @@ def generate_summary_view(request):
                            else (e.custom_category.name if e.custom_category else "Other")),
             "snippet":    e.snippet or "",
         })
+
     if not emails_data:
         return JsonResponse({
-            "summary": f"No important emails found in the {label.lower()}. Your inbox looks quiet — great!",
-            "count": 0, "label": label,
+            "items": [],
+            "count": 0,
+            "label": label,
+            "empty_msg": f"No important emails found in the {label.lower()}. Your inbox looks quiet!",
         })
+
     try:
-        summary = services.generate_ai_summary(emails_data)
+        items = services.generate_ai_summary(emails_data, profile_text=profile_text)
     except Exception as exc:
         return JsonResponse({"error": str(exc)}, status=500)
-    return JsonResponse({"summary": summary, "count": len(emails_data), "label": label})
+
+    return JsonResponse({"items": items, "count": len(items), "label": label})
 
 
 @login_required

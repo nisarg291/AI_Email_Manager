@@ -15,30 +15,47 @@
 .range-btn .rb-label{font-weight:700;font-size:.9rem;display:block}
 .range-btn .rb-sub{font-size:.75rem;color:#94a3b8;margin-top:3px;display:block}
 .range-btn.active .rb-sub{color:rgba(255,255,255,.75)}
-.range-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
 .generate-wrap{text-align:center;margin-bottom:24px}
 .btn-generate-sum{background:linear-gradient(135deg,#6366f1,#7c3aed);color:#fff;border:none;border-radius:10px;padding:12px 32px;font-size:.95rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:all .18s;box-shadow:0 4px 14px rgba(99,102,241,.35)}
 .btn-generate-sum:hover{opacity:.9;transform:translateY(-1px);box-shadow:0 6px 20px rgba(99,102,241,.4)}
 .btn-generate-sum:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none}
-.summary-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 1px 4px rgba(0,0,0,.05);overflow:hidden;display:none}
-.summary-card.show{display:block}
-.summary-card-head{background:linear-gradient(135deg,#eff6ff,#f5f3ff);border-bottom:1px solid #ddd6fe;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
-.summary-card-head .sh-title{font-weight:700;font-size:.95rem;color:#1e1b4b;display:flex;align-items:center;gap:8px}
+
+/* Result card */
+.sum-result-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 1px 4px rgba(0,0,0,.05);overflow:hidden;display:none}
+.sum-result-card.show{display:block}
+.sum-result-head{background:linear-gradient(135deg,#eff6ff,#f5f3ff);border-bottom:1px solid #ddd6fe;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.sum-result-head .sh-title{font-weight:700;font-size:.95rem;color:#1e1b4b;display:flex;align-items:center;gap:8px}
 .sh-badge{background:#6366f1;color:#fff;border-radius:20px;padding:2px 10px;font-size:.72rem;font-weight:700}
-.sh-label{font-size:.78rem;color:#6366f1;font-weight:600}
-.summary-body{padding:22px 24px}
-.summary-body p{margin:0;font-size:.88rem;line-height:1.75;color:#374151;white-space:pre-wrap}
-.summary-bullet{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid #f8fafc;font-size:.875rem;color:#374151;line-height:1.6}
-.summary-bullet:last-child{border-bottom:0}
-.sum-dot{color:#6366f1;flex-shrink:0;font-size:.9rem;margin-top:2px}
+.sh-range{font-size:.78rem;color:#6366f1;font-weight:600}
+
+/* Individual digest items */
+.digest-list{padding:0}
+.digest-item{padding:16px 22px;border-bottom:1px solid #f1f5f9;display:flex;gap:14px;align-items:flex-start;transition:background .12s}
+.digest-item:last-child{border-bottom:0}
+.digest-item:hover{background:#fafbff}
+.di-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:7px}
+.di-dot.urgent{background:#4a86e8}
+.di-dot.important{background:#16a765}
+.di-dot.normal{background:#94a3b8}
+.di-content{flex:1;min-width:0}
+.di-meta{display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap}
+.di-sender{font-weight:700;font-size:.82rem;color:#0f172a}
+.di-subject{font-size:.79rem;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:300px}
+.di-urgent-pill{background:#dbeafe;color:#1d4ed8;border-radius:10px;padding:1px 7px;font-size:.68rem;font-weight:700;flex-shrink:0}
+.di-summary{font-size:.85rem;color:#374151;line-height:1.65;margin-bottom:6px}
+.di-link{font-size:.78rem;color:#6366f1;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:4px}
+.di-link:hover{color:#4338ca;text-decoration:underline}
+
 .spinner-sum{display:inline-block;width:16px;height:16px;border:2.5px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spspin .6s linear infinite}
 @keyframes spspin{to{transform:rotate(360deg)}}
-.sum-error{color:#dc2626;font-size:.85rem;text-align:center;padding:16px}
+.sum-error{color:#dc2626;font-size:.85rem;text-align:center;padding:20px}
+.sum-empty{color:#94a3b8;font-size:.85rem;text-align:center;padding:40px 20px}
+.sum-empty i{font-size:2rem;display:block;margin-bottom:8px;opacity:.4}
 </style>
 
 <div class="summary-hero">
   <h4><i class="bi bi-stars me-2"></i>AI Email Digest</h4>
-  <p>AI reads your important emails and gives you a concise briefing — no inbox scrolling needed.</p>
+  <p>AI reads your classified emails and gives you a focused briefing — only what truly matters, with links to open each email directly.</p>
 </div>
 
 <p class="text-muted small mb-3">Choose a time range, then click <strong>Generate Summary</strong>:</p>
@@ -67,18 +84,16 @@
   </button>
 </div>
 
-<div class="summary-card" id="summary-card">
-  <div class="summary-card-head">
+<div class="sum-result-card" id="sum-result-card">
+  <div class="sum-result-head">
     <div class="sh-title">
       <i class="bi bi-stars" style="color:#6366f1"></i>
-      AI Digest
-      <span class="sh-badge" id="sum-count"></span>
+      Email Digest
+      <span class="sh-badge" id="sum-count-badge"></span>
     </div>
-    <span class="sh-label" id="sum-label-text"></span>
+    <span class="sh-range" id="sum-range-text"></span>
   </div>
-  <div class="summary-body" id="summary-body">
-    <p id="summary-text"></p>
-  </div>
+  <div class="digest-list" id="digest-list"></div>
 </div>
 
 <script>
@@ -95,11 +110,12 @@
 
   window.generateSummary = async function(){
     const btn  = document.getElementById('btn-gen-sum');
-    const card = document.getElementById('summary-card');
-    const body = document.getElementById('summary-body');
+    const card = document.getElementById('sum-result-card');
+    const list = document.getElementById('digest-list');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-sum"></span> Analysing emails…';
+    btn.innerHTML = '<span class="spinner-sum"></span> Analysing your emails…';
     card.classList.remove('show');
+    list.innerHTML = '';
 
     try {
       const fd = new FormData();
@@ -109,25 +125,48 @@
       const d = await r.json();
       if(d.error){ throw new Error(d.error); }
 
-      document.getElementById('sum-count').textContent = d.count > 0 ? d.count + ' emails' : 'All quiet';
-      document.getElementById('sum-label-text').textContent = d.label;
+      const items = d.items || [];
+      document.getElementById('sum-count-badge').textContent = items.length > 0 ? items.length + ' emails' : 'All quiet';
+      document.getElementById('sum-range-text').textContent = d.label || '';
 
-      // Render bullets
-      const lines = d.summary.split('\n').filter(l => l.trim());
-      body.innerHTML = lines.map(line => {
-        const clean = line.replace(/^[•\-\*]\s*/, '').trim();
-        return `<div class="summary-bullet"><span class="sum-dot">•</span><span>${clean}</span></div>`;
-      }).join('');
-
+      if(items.length === 0 || d.empty_msg){
+        list.innerHTML = `<div class="sum-empty"><i class="bi bi-inbox"></i>${d.empty_msg || 'No important emails found.'}</div>`;
+      } else {
+        list.innerHTML = items.map(item => {
+          const isUrgent = item.is_urgent;
+          const dotClass = isUrgent ? 'urgent' : 'important';
+          const urgentPill = isUrgent ? '<span class="di-urgent-pill">🔵 Urgent</span>' : '';
+          const emailUrl = item.gmail_id ? `/accounts/email/${item.gmail_id}/` : '#';
+          const sender = escHtml(item.sender || item.from || '');
+          const subject = escHtml(item.subject || '');
+          const summary = escHtml(item.summary || '');
+          return `<div class="digest-item">
+            <div class="di-dot ${dotClass}"></div>
+            <div class="di-content">
+              <div class="di-meta">
+                <span class="di-sender">${sender}</span>
+                ${urgentPill}
+                <span class="di-subject">${subject}</span>
+              </div>
+              <div class="di-summary">${summary}</div>
+              ${emailUrl !== '#' ? `<a class="di-link" href="${emailUrl}"><i class="bi bi-envelope-open"></i> Open email</a>` : ''}
+            </div>
+          </div>`;
+        }).join('');
+      }
       card.classList.add('show');
     } catch(e) {
-      body.innerHTML = `<div class="sum-error"><i class="bi bi-exclamation-circle me-1"></i>${e.message}</div>`;
+      list.innerHTML = `<div class="sum-error"><i class="bi bi-exclamation-circle me-1"></i>${escHtml(e.message)}</div>`;
       card.classList.add('show');
     } finally {
       btn.disabled = false;
       btn.innerHTML = '<i class="bi bi-stars"></i> Generate Summary';
     }
   };
+
+  function escHtml(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
 })();
 </script>
 

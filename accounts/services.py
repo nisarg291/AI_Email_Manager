@@ -738,6 +738,19 @@ def ensure_label(svc, name):
     }).execute()["id"]
 
 
+def ensure_colored_label(svc, name: str, bg: str, text: str = "#ffffff") -> str:
+    """Ensure a Gmail label with a specific colour exists; create it if absent."""
+    all_labels = {l["name"]: l["id"] for l in svc.users().labels().list(userId="me").execute().get("labels", [])}
+    if name in all_labels:
+        return all_labels[name]
+    return svc.users().labels().create(userId="me", body={
+        "name": name,
+        "labelListVisibility": "labelShow",
+        "messageListVisibility": "show",
+        "color": {"backgroundColor": bg, "textColor": text},
+    }).execute()["id"]
+
+
 def apply_labels(svc, msg_id, label_ids):
     if not label_ids: return
     svc.users().messages().modify(userId="me", id=msg_id, body={"addLabelIds": list(label_ids)}).execute()
@@ -855,37 +868,48 @@ def list_sent_messages(user, max_results: int = 50) -> list:
     return results
 
 
-def generate_ai_summary(emails_data: list) -> str:
-    """Generate a concise executive digest from classified email data."""
+def generate_ai_summary(emails_data: list, profile_text: str = "") -> list:
+    """Generate a structured per-email digest. Returns list of {gmail_id, subject, sender, summary}."""
     if _openai is None:
         raise RuntimeError("OPENAI_API_KEY is not configured.")
     if not emails_data:
-        return "No important emails found in this time range."
+        return []
+
+    n = len(emails_data)
+    min_count = min(5, n)
+    max_count = min(20, n)
+
     lines = []
     for i, e in enumerate(emails_data, 1):
-        urgent = "  🔥 URGENT" if e.get("is_urgent") else ""
+        urgent_tag = " [URGENT]" if e.get("is_urgent") else ""
         lines.append(
-            f"{i}. From: {e.get('from','?')} | Subject: {e.get('subject','?')} | "
-            f"Importance: {e.get('importance',3)}/5{urgent}\n"
-            f"   Preview: {str(e.get('snippet',''))[:280]}"
+            f"{i}. gmail_id={e.get('gmail_id', '')} | From: {e.get('from', '?')} | "
+            f"Subject: {e.get('subject', '?')} | Importance: {e.get('importance', 3)}/5{urgent_tag} | "
+            f"Category: {e.get('category', '')}\n"
+            f"   Preview: {str(e.get('snippet', ''))[:300]}"
         )
     prompt = (
-        "You are an executive assistant summarising a professional's important emails.\n\n"
-        "Write a CONCISE DIGEST following these rules:\n"
-        "- Cover only emails that truly need attention (urgent, time-sensitive, or important).\n"
-        "- One to two sentences MAX per email — start each with '• [Sender] —'.\n"
-        "- Be direct and skip all filler words.\n"
-        "- Total length must be between 100 and 200 words.\n"
-        "- Output a clean bullet list, nothing else.\n\n"
-        "EMAILS:\n" + "\n\n".join(lines) + "\n\nDIGEST:"
+        "You are an executive assistant creating a focused email digest for a busy professional.\n\n"
+        f"USER PROFILE:\n{profile_text or 'Working professional.'}\n\n"
+        f"TASK: From the emails below, select the {min_count}–{max_count} that truly matter to this user. "
+        "For each selected email write 1–2 focused, actionable sentences: who sent it, what they need, "
+        "and what the user should do (if anything).\n\n"
+        "EXCLUDE: security alerts, login notifications, 2FA/OTP codes, password resets, device alerts.\n"
+        "PRIORITISE: urgent items, meetings/deadlines, important work/finance, personal matters needing action.\n\n"
+        "Return ONLY valid JSON:\n"
+        '{"emails": [{"gmail_id":"...","subject":"...","sender":"...","summary":"1-2 sentences"}]}\n\n'
+        "EMAILS:\n" + "\n\n".join(lines) + "\n\nJSON:"
     )
     resp = _openai.chat.completions.create(
         model=settings.OPENAI_MODEL,
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=450,
-        temperature=0.35,
+        response_format={"type": "json_object"},
+        max_tokens=2000,
+        temperature=0.3,
     )
-    return resp.choices[0].message.content.strip()
+    parsed = json.loads(resp.choices[0].message.content)
+    items = parsed.get("emails") or parsed.get("items") or parsed.get("results") or []
+    return items if isinstance(items, list) else []
 
 
 def send_new_email(user, to_email: str, subject: str, body: str):
@@ -1087,10 +1111,7 @@ def classify_emails(user, scope="latest200"):
         # =====================================================
         # AI PROMPT
         # =====================================================
-        prompt = f"""
-You are an enterprise email triage assistant.
-
-Tailor classification to the user profile.
+        prompt = f"""You are an enterprise email triage assistant. Think carefully — most emails are NOT urgent or important.
 
 USER PROFILE
 {profile_text}
@@ -1098,36 +1119,44 @@ USER PROFILE
 EMAIL
 From: {meta['from']}
 Subject: {meta['subject']}
-Snippet: {meta['snippet']}
+First 300 chars: {meta['snippet'][:300]}
 
 Pick EXACTLY ONE category slug from this list:
-
 {cats_listing}
 
-Also decide:
+STRICT CLASSIFICATION RULES:
 
-- importance: 1 (junk) to 5 (critical)
-- is_urgent: true ONLY if action is needed within 24-48h
-- action:
-    "keep"
-    "archive"
-    "trash"
+IMPORTANCE (be conservative — default to 2-3):
+  5 = critical: must act immediately, serious consequences if missed
+  4 = important: needs attention soon, clear action required
+  3 = normal: informational, no immediate action needed
+  2 = low: promotional, update, low-priority newsletter
+  1 = junk: spam, unsolicited, obvious garbage
 
-Guidelines:
-- Never trash personal, financial, security, legal,
-  healthcare, interview, or government emails.
-- Trash only obvious spam, promotions,
-  low-value newsletters, or irrelevant marketing.
-- Use archive for informational low-priority content.
+SECURITY & LOGIN EMAILS — password resets, 2FA/OTP codes, login alerts, device alerts, account security notices, verification codes, breach notifications:
+  → importance = 3 at most, is_urgent = false ALWAYS, action = "keep"
 
-Also return:
-- is_event: true if it references a meeting,
-  interview, appointment, deadline, webinar, etc.
-- event_when: short time/date text if available
-- reason: one short sentence
+is_urgent = true ONLY IF ALL of these apply:
+  - The user personally must attend, respond, or act within 24-48h
+  - Examples: interview or meeting scheduled, assessment/exam deadline, a colleague waiting for a time-sensitive reply
+  - NOT for: newsletters, promotions, security alerts, automated notifications, general FYI emails, account activity
+
+SCAM / PHISHING DETECTION:
+  is_scam = true if the email clearly: promises lottery/prize wins, requests bank/card/login details,
+  threatens account suspension to steal credentials, offers unexpected inheritance/money transfer,
+  contains fake urgency to harvest personal info, is an obvious fake job with upfront fees,
+  or is a Nigerian-prince / advance-fee style scam.
+  is_suspicious = true if you suspect it might be a scam but are not certain (triggers a deeper scan).
+
+ACTION RULES:
+  - "keep"    → personal, work, financial, calendar, legal, healthcare, government, security, job emails
+  - "archive" → informational low-priority content (newsletters, service updates)
+  - "trash"   → obvious spam/junk/scam, low-value promotions, bulk marketing
+  - NEVER trash: personal, financial, security, legal, healthcare, interview, or government emails.
+
+Return is_event = true if the email references a meeting, interview, appointment, deadline, or webinar.
 
 Respond ONLY with valid JSON:
-
 {{
   "category": "<slug>",
   "importance": 1,
@@ -1135,9 +1164,11 @@ Respond ONLY with valid JSON:
   "action": "keep",
   "is_event": false,
   "event_when": "",
-  "reason": ""
-}}
-"""
+  "reason": "",
+  "is_suspicious": false,
+  "is_scam": false,
+  "scam_type": ""
+}}"""
 
         # =====================================================
         # AI CLASSIFICATION
@@ -1170,18 +1201,69 @@ Respond ONLY with valid JSON:
             }
 
         # =====================================================
+        # SCAM / SUSPICIOUS SECOND-PASS DEEP SCAN
+        # =====================================================
+        is_scam      = bool(data.get("is_scam", False))
+        is_suspicious = bool(data.get("is_suspicious", False)) and not is_scam
+        if is_suspicious:
+            try:
+                full_msg  = get_message_full(user, m["id"])
+                body_text = full_msg.get("body", "")[:2500]
+                scam_prompt = (
+                    "Analyse this email for scam, phishing, or social engineering.\n\n"
+                    f"From: {meta['from']}\nSubject: {meta['subject']}\n"
+                    f"Body (first 2500 chars):\n{body_text}\n\n"
+                    "Set is_scam=true if the email:\n"
+                    "- Requests money, bank/card details, login credentials, or personal ID\n"
+                    "- Promises lottery wins, inheritance, prizes, or unexpected funds\n"
+                    "- Contains links to non-official or spoofed domains\n"
+                    "- Impersonates a bank, government body, or major service (Google, PayPal, Amazon…)\n"
+                    "- Creates false urgency to capture personal info\n"
+                    "- Offers a fake job with upfront payment required\n"
+                    "Otherwise is_scam = false.\n\n"
+                    'Return ONLY valid JSON: {"is_scam": false, "scam_type": "", "reason": ""}'
+                )
+                scam_resp = _openai.chat.completions.create(
+                    model=settings.OPENAI_MODEL,
+                    messages=[{"role": "user", "content": scam_prompt}],
+                    response_format={"type": "json_object"},
+                    max_tokens=120,
+                    temperature=0.1,
+                )
+                sd = json.loads(scam_resp.choices[0].message.content)
+                if sd.get("is_scam"):
+                    is_scam = True
+                    data["category"] = "phishing"
+                    data["reason"]   = sd.get("reason", "Detected as scam/phishing after deep scan.")
+            except Exception:
+                pass
+
+        # =====================================================
         # CATEGORY
         # =====================================================
+        _SPAM_SLUGS = {"phishing", "financial_scam", "fake_job", "malware",
+                       "spoofing", "bulk_spam", "adult_gambling"}
+        _SECURITY_SLUGS = {"two_fa", "login_alert", "device_alert", "password_reset",
+                           "breach", "security_report", "access_request", "compliance"}
+        if is_scam and data.get("category") not in _SPAM_SLUGS:
+            data["category"] = "phishing"
+
         cat = cat_by_slug.get(data.get("category"))
 
-        ai_importance = max(
-            1,
-            min(5, int(data.get("importance", 3)))
-        )
+        ai_importance = max(1, min(5, int(data.get("importance", 3))))
+        is_urgent     = bool(data.get("is_urgent", False))
+        ai_action     = data.get("action", "keep")
 
-        is_urgent = bool(data.get("is_urgent", False))
+        # Security emails: cap importance at 3, never urgent
+        if data.get("category", "") in _SECURITY_SLUGS:
+            ai_importance = min(ai_importance, 3)
+            is_urgent = False
 
-        ai_action = data.get("action", "keep")
+        # Scam: force junk, not urgent, trash
+        if is_scam:
+            ai_importance = 1
+            is_urgent     = False
+            ai_action     = "trash"
 
         # =====================================================
         # USER TIER PREFERENCE
@@ -1234,6 +1316,12 @@ Respond ONLY with valid JSON:
             final_action = "trash"
             importance = 1
 
+        # Scam always trashed regardless of tier preference
+        if is_scam:
+            final_action = "trash"
+            importance   = 1
+            is_urgent    = False
+
         # =====================================================
         # AUTO CLEANUP FOR OLD EMAILS
         # =====================================================
@@ -1245,32 +1333,31 @@ Respond ONLY with valid JSON:
         label_ids = []
 
         try:
-
-            # Main category label
-            if cat and cat.slug != "other":
-                label_ids.append(ensure_label(svc, cat.short_label))
+            if is_scam:
+                # Scam/phishing → dark red label only
+                label_ids.append(ensure_colored_label(svc, "🚨 Scam/Phishing", "#cc3a21"))
             else:
-                label_ids.append(ensure_label(svc, "Other"))
+                # Main category label
+                if cat and cat.slug not in {"other"} | _SPAM_SLUGS:
+                    label_ids.append(ensure_label(svc, cat.short_label))
+                else:
+                    label_ids.append(ensure_label(svc, "Other"))
 
-            # MyOrg label
-            if org_domain and sender_domain == org_domain and myorg_cat:
-                label_ids.append(ensure_label(svc, myorg_cat.short_label))
+                # MyOrg label
+                if org_domain and sender_domain == org_domain and myorg_cat:
+                    label_ids.append(ensure_label(svc, myorg_cat.short_label))
 
-            # Urgent label
-            if is_urgent and urgent_cat:
-                label_ids.append(ensure_label(svc, urgent_cat.short_label))
+                # Urgent → blue label  |  Important (4+) → green label
+                if is_urgent:
+                    label_ids.append(ensure_colored_label(svc, "🔵 Urgent", "#4a86e8"))
+                elif importance >= 4:
+                    label_ids.append(ensure_colored_label(svc, "✅ Important", "#16a765"))
 
-            # Tier labels
-            if user_tier == "critical":
-                label_ids.append(ensure_label(svc, "⭐ Critical"))
-            elif user_tier == "important":
-                label_ids.append(ensure_label(svc, "⭐ Important"))
+                # Critical tier gets an extra star label
+                if user_tier == "critical":
+                    label_ids.append(ensure_label(svc, "⭐ Critical"))
 
-            apply_labels(
-                svc,
-                m["id"],
-                label_ids
-            )
+            apply_labels(svc, m["id"], label_ids)
 
         except Exception:
             pass
