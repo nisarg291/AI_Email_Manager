@@ -1,0 +1,134 @@
+{% extends "base.html" %}{% block title %}AI Summary{% endblock %}
+{% block topbar_title %}AI Email Summary{% endblock %}
+{% block body %}
+
+<style>
+.summary-hero{background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:16px;padding:28px 28px 24px;color:#fff;margin-bottom:20px}
+.summary-hero h4{margin:0 0 6px;font-weight:800;font-size:1.25rem}
+.summary-hero p{margin:0;opacity:.85;font-size:.9rem}
+.range-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:576px){.range-grid{grid-template-columns:1fr}}
+.range-btn{background:#fff;border:2px solid #e2e8f0;border-radius:13px;padding:18px 16px;text-align:center;cursor:pointer;transition:all .18s;width:100%}
+.range-btn:hover{border-color:#6366f1;background:#f5f3ff;transform:translateY(-1px);box-shadow:0 4px 16px rgba(99,102,241,.15)}
+.range-btn.active{border-color:#6366f1;background:linear-gradient(135deg,#6366f1,#7c3aed);color:#fff}
+.range-btn .rb-icon{font-size:1.8rem;display:block;margin-bottom:8px}
+.range-btn .rb-label{font-weight:700;font-size:.9rem;display:block}
+.range-btn .rb-sub{font-size:.75rem;color:#94a3b8;margin-top:3px;display:block}
+.range-btn.active .rb-sub{color:rgba(255,255,255,.75)}
+.range-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.generate-wrap{text-align:center;margin-bottom:24px}
+.btn-generate-sum{background:linear-gradient(135deg,#6366f1,#7c3aed);color:#fff;border:none;border-radius:10px;padding:12px 32px;font-size:.95rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:all .18s;box-shadow:0 4px 14px rgba(99,102,241,.35)}
+.btn-generate-sum:hover{opacity:.9;transform:translateY(-1px);box-shadow:0 6px 20px rgba(99,102,241,.4)}
+.btn-generate-sum:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none}
+.summary-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 1px 4px rgba(0,0,0,.05);overflow:hidden;display:none}
+.summary-card.show{display:block}
+.summary-card-head{background:linear-gradient(135deg,#eff6ff,#f5f3ff);border-bottom:1px solid #ddd6fe;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.summary-card-head .sh-title{font-weight:700;font-size:.95rem;color:#1e1b4b;display:flex;align-items:center;gap:8px}
+.sh-badge{background:#6366f1;color:#fff;border-radius:20px;padding:2px 10px;font-size:.72rem;font-weight:700}
+.sh-label{font-size:.78rem;color:#6366f1;font-weight:600}
+.summary-body{padding:22px 24px}
+.summary-body p{margin:0;font-size:.88rem;line-height:1.75;color:#374151;white-space:pre-wrap}
+.summary-bullet{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid #f8fafc;font-size:.875rem;color:#374151;line-height:1.6}
+.summary-bullet:last-child{border-bottom:0}
+.sum-dot{color:#6366f1;flex-shrink:0;font-size:.9rem;margin-top:2px}
+.spinner-sum{display:inline-block;width:16px;height:16px;border:2.5px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spspin .6s linear infinite}
+@keyframes spspin{to{transform:rotate(360deg)}}
+.sum-error{color:#dc2626;font-size:.85rem;text-align:center;padding:16px}
+</style>
+
+<div class="summary-hero">
+  <h4><i class="bi bi-stars me-2"></i>AI Email Digest</h4>
+  <p>AI reads your important emails and gives you a concise briefing — no inbox scrolling needed.</p>
+</div>
+
+<p class="text-muted small mb-3">Choose a time range, then click <strong>Generate Summary</strong>:</p>
+
+<div class="range-grid">
+  <button class="range-btn active" data-range="24h" onclick="selectRange(this)">
+    <span class="rb-icon">⚡</span>
+    <span class="rb-label">Last 24 Hours</span>
+    <span class="rb-sub">Today's important emails</span>
+  </button>
+  <button class="range-btn" data-range="week" onclick="selectRange(this)">
+    <span class="rb-icon">📅</span>
+    <span class="rb-label">Last 7 Days</span>
+    <span class="rb-sub">This week's key emails</span>
+  </button>
+  <button class="range-btn" data-range="month" onclick="selectRange(this)">
+    <span class="rb-icon">📆</span>
+    <span class="rb-label">Last 30 Days</span>
+    <span class="rb-sub">Full month overview</span>
+  </button>
+</div>
+
+<div class="generate-wrap">
+  <button class="btn-generate-sum" id="btn-gen-sum" onclick="generateSummary()">
+    <i class="bi bi-stars"></i> Generate Summary
+  </button>
+</div>
+
+<div class="summary-card" id="summary-card">
+  <div class="summary-card-head">
+    <div class="sh-title">
+      <i class="bi bi-stars" style="color:#6366f1"></i>
+      AI Digest
+      <span class="sh-badge" id="sum-count"></span>
+    </div>
+    <span class="sh-label" id="sum-label-text"></span>
+  </div>
+  <div class="summary-body" id="summary-body">
+    <p id="summary-text"></p>
+  </div>
+</div>
+
+<script>
+(function(){
+  const GEN_URL = "{% url 'generate_summary' %}";
+  const CSRF    = "{{ csrf_token }}";
+  let selectedRange = "24h";
+
+  window.selectRange = function(btn){
+    document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedRange = btn.dataset.range;
+  };
+
+  window.generateSummary = async function(){
+    const btn  = document.getElementById('btn-gen-sum');
+    const card = document.getElementById('summary-card');
+    const body = document.getElementById('summary-body');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-sum"></span> Analysing emails…';
+    card.classList.remove('show');
+
+    try {
+      const fd = new FormData();
+      fd.append('range', selectedRange);
+      fd.append('csrfmiddlewaretoken', CSRF);
+      const r = await fetch(GEN_URL, {method:'POST', body:fd});
+      const d = await r.json();
+      if(d.error){ throw new Error(d.error); }
+
+      document.getElementById('sum-count').textContent = d.count > 0 ? d.count + ' emails' : 'All quiet';
+      document.getElementById('sum-label-text').textContent = d.label;
+
+      // Render bullets
+      const lines = d.summary.split('\n').filter(l => l.trim());
+      body.innerHTML = lines.map(line => {
+        const clean = line.replace(/^[•\-\*]\s*/, '').trim();
+        return `<div class="summary-bullet"><span class="sum-dot">•</span><span>${clean}</span></div>`;
+      }).join('');
+
+      card.classList.add('show');
+    } catch(e) {
+      body.innerHTML = `<div class="sum-error"><i class="bi bi-exclamation-circle me-1"></i>${e.message}</div>`;
+      card.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-stars"></i> Generate Summary';
+    }
+  };
+})();
+</script>
+
+{% endblock %}

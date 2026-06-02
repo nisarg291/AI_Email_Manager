@@ -821,6 +821,73 @@ def delete_emails_query(user, query: str, max_results: int = 10000) -> int:
     return total
 
 
+def list_sent_messages(user, max_results: int = 50) -> list:
+    """Fetch recent sent messages with To/Subject/Date headers."""
+    svc = gmail_service(user)
+    msgs = list_messages(user, query="in:sent", max_results=max_results)
+    results = []
+    for msg in msgs:
+        try:
+            m = svc.users().messages().get(
+                userId="me", id=msg["id"], format="metadata",
+                metadataHeaders=["Subject", "From", "To", "Date"],
+            ).execute()
+            headers = {h["name"]: h["value"] for h in m["payload"].get("headers", [])}
+            received = None
+            if headers.get("Date"):
+                try:
+                    received = parsedate_to_datetime(headers["Date"])
+                    if received and received.tzinfo is None:
+                        received = received.replace(tzinfo=timezone.utc)
+                except Exception:
+                    pass
+            results.append({
+                "id":       m["id"],
+                "thread_id": m.get("threadId", ""),
+                "subject":  headers.get("Subject", "(no subject)"),
+                "to":       headers.get("To", ""),
+                "from":     headers.get("From", ""),
+                "date":     received,
+                "snippet":  m.get("snippet", ""),
+            })
+        except Exception:
+            continue
+    return results
+
+
+def generate_ai_summary(emails_data: list) -> str:
+    """Generate a concise executive digest from classified email data."""
+    if _openai is None:
+        raise RuntimeError("OPENAI_API_KEY is not configured.")
+    if not emails_data:
+        return "No important emails found in this time range."
+    lines = []
+    for i, e in enumerate(emails_data, 1):
+        urgent = "  🔥 URGENT" if e.get("is_urgent") else ""
+        lines.append(
+            f"{i}. From: {e.get('from','?')} | Subject: {e.get('subject','?')} | "
+            f"Importance: {e.get('importance',3)}/5{urgent}\n"
+            f"   Preview: {str(e.get('snippet',''))[:280]}"
+        )
+    prompt = (
+        "You are an executive assistant summarising a professional's important emails.\n\n"
+        "Write a CONCISE DIGEST following these rules:\n"
+        "- Cover only emails that truly need attention (urgent, time-sensitive, or important).\n"
+        "- One to two sentences MAX per email — start each with '• [Sender] —'.\n"
+        "- Be direct and skip all filler words.\n"
+        "- Total length must be between 100 and 200 words.\n"
+        "- Output a clean bullet list, nothing else.\n\n"
+        "EMAILS:\n" + "\n\n".join(lines) + "\n\nDIGEST:"
+    )
+    resp = _openai.chat.completions.create(
+        model=settings.OPENAI_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=450,
+        temperature=0.35,
+    )
+    return resp.choices[0].message.content.strip()
+
+
 def send_new_email(user, to_email: str, subject: str, body: str):
     """Send a brand-new email (no thread) via Gmail API on behalf of `user`."""
     import base64

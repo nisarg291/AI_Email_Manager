@@ -1,0 +1,75 @@
+{% extends "base.html" %}{% block title %}Sent{% endblock %}
+{% block topbar_title %}Sent Emails{% endblock %}
+{% block body %}
+
+<style>
+.sent-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.sent-head{padding:18px 22px 16px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.sent-head h5{margin:0;font-weight:700;font-size:1rem}
+.sent-table{width:100%;border-collapse:collapse}
+.sent-table th{padding:10px 16px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#94a3b8;background:#f8fafc;border-bottom:1px solid #f1f5f9;text-align:left;white-space:nowrap}
+.sent-table td{padding:12px 16px;border-bottom:1px solid #f8fafc;vertical-align:middle;font-size:.84rem;color:#374151}
+.sent-table tr:last-child td{border-bottom:0}
+.sent-table tr{cursor:pointer;transition:background .12s}
+.sent-table tr:hover td{background:#fafbff}
+.sent-to{font-weight:600;color:#0f172a;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sent-subject{color:#475569;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sent-snippet{color:#94a3b8;font-size:.77rem;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sent-date{white-space:nowrap;color:#94a3b8;font-size:.78rem}
+.empty-state{padding:60px 20px;text-align:center;color:#94a3b8}
+.empty-state i{font-size:2.5rem;display:block;margin-bottom:12px;opacity:.4}
+</style>
+
+<div class="sent-card">
+  <div class="sent-head">
+    <div>
+      <h5><i class="bi bi-send-fill text-primary me-2"></i>Sent</h5>
+      <p class="text-muted small mb-0 mt-1">Emails you've sent from this account — most recent first.</p>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="document.getElementById('compose-modal').classList.add('open')">
+      <i class="bi bi-pencil-square me-1"></i> Compose
+    </button>
+  </div>
+
+  {% if error %}
+    <div class="alert-modern m-3" style="background:#fef2f2;border-color:#fca5a5;color:#dc2626">
+      <i class="bi bi-exclamation-circle-fill"></i>
+      <div>{{ error }}</div>
+    </div>
+  {% endif %}
+
+  {% if sent_messages %}
+    <div style="overflow-x:auto">
+      <table class="sent-table">
+        <thead>
+          <tr>
+            <th>To</th>
+            <th>Subject</th>
+            <th class="d-none d-md-table-cell">Preview</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in sent_messages %}
+            <tr onclick="window.location='{% url 'email_detail' m.id %}'">
+              <td><div class="sent-to">{{ m.to|default:"—" }}</div></td>
+              <td><div class="sent-subject">{{ m.subject }}</div></td>
+              <td class="d-none d-md-table-cell"><div class="sent-snippet">{{ m.snippet }}</div></td>
+              <td class="sent-date">{% if m.date %}{{ m.date|date:"M d, H:i" }}{% else %}—{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    {% if not error %}
+      <div class="empty-state">
+        <i class="bi bi-send"></i>
+        <strong>No sent emails found</strong>
+        <p class="small mt-2 mb-0">Emails you send via Gmail will appear here.</p>
+      </div>
+    {% endif %}
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -1205,6 +1205,72 @@ def send_reply_view(request, msg_id):
 
 
 @login_required
+def sent_view(request):
+    bail = _require_google_account(request)
+    if bail: return bail
+    sent_messages = []
+    error = None
+    try:
+        sent_messages = services.list_sent_messages(request.user, max_results=50)
+    except Exception as exc:
+        error = str(exc)
+    return render(request, "sent.html", {"sent_messages": sent_messages, "error": error})
+
+
+@login_required
+def summary_view(request):
+    return render(request, "email_summary.html", {})
+
+
+@login_required
+def generate_summary_view(request):
+    """AJAX POST: generate AI digest for a chosen time range."""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    from django.utils import timezone as tz
+    from datetime import timedelta
+    time_range = request.POST.get("range", "24h")
+    now = tz.now()
+    if time_range == "24h":
+        since = now - timedelta(hours=24)
+        label = "Last 24 hours"
+    elif time_range == "week":
+        since = now - timedelta(days=7)
+        label = "Last 7 days"
+    elif time_range == "month":
+        since = now - timedelta(days=30)
+        label = "Last 30 days"
+    else:
+        since = now - timedelta(hours=24)
+        label = "Last 24 hours"
+    emails_qs = (ClassifiedEmail.objects
+                 .filter(user=request.user, received_at__gte=since, importance__gte=3)
+                 .select_related("category", "custom_category")
+                 .order_by("-is_urgent", "-importance", "-received_at")[:40])
+    emails_data = []
+    for e in emails_qs:
+        emails_data.append({
+            "from":       e.sender,
+            "subject":    e.subject,
+            "importance": e.importance,
+            "is_urgent":  e.is_urgent,
+            "category":   (e.category.name if e.category
+                           else (e.custom_category.name if e.custom_category else "Other")),
+            "snippet":    e.snippet or "",
+        })
+    if not emails_data:
+        return JsonResponse({
+            "summary": f"No important emails found in the {label.lower()}. Your inbox looks quiet — great!",
+            "count": 0, "label": label,
+        })
+    try:
+        summary = services.generate_ai_summary(emails_data)
+    except Exception as exc:
+        return JsonResponse({"error": str(exc)}, status=500)
+    return JsonResponse({"summary": summary, "count": len(emails_data), "label": label})
+
+
+@login_required
 def compose_ai_view(request):
     """AJAX POST: generate a new email draft with AI."""
     if request.method != "POST":

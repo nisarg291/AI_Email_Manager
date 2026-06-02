@@ -44,4 +44,7 @@ urlpatterns = [
     path("email/<str:msg_id>/send-reply/", views.send_reply_view, name="send_reply"),
     path("compose/ai/",   views.compose_ai_view,   name="compose_ai"),
     path("compose/send/", views.send_compose_view, name="send_compose"),
+    path("sent/",              views.sent_view,             name="sent"),
+    path("summary/",           views.summary_view,          name="email_summary"),
+    path("summary/generate/",  views.generate_summary_view, name="generate_summary"),
 ]

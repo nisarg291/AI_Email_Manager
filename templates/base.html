@@ -224,9 +224,18 @@ hr.dropdown-divider{margin:5px 0;border-color:var(--border)}
         <i class="bi bi-grid-1x2-fill"></i> Dashboard
       </a>
 
+      <!-- Compose button -->
+      <button class="side-link side-compose-btn" style="background:linear-gradient(135deg,#6366f1,#7c3aed);color:#fff;border:none;width:100%;cursor:pointer;margin-top:4px;margin-bottom:2px"
+              onclick="openComposeModal()">
+        <i class="bi bi-pencil-square"></i> Compose Email
+      </button>
+
       <div class="side-section">Inbox</div>
       <a class="side-link {% if request.resolver_match.url_name == 'manage_emails' %}active{% endif %}" href="{% url 'manage_emails' %}">
         <i class="bi bi-inbox-fill"></i> Manage
+      </a>
+      <a class="side-link {% if request.resolver_match.url_name == 'sent' %}active{% endif %}" href="{% url 'sent' %}">
+        <i class="bi bi-send-fill"></i> Sent
       </a>
       <a class="side-link {% if request.resolver_match.url_name == 'urgent' %}active{% endif %}" href="{% url 'urgent' %}">
         <i class="bi bi-fire"></i> Urgent
@@ -242,6 +251,11 @@ hr.dropdown-divider{margin:5px 0;border-color:var(--border)}
       </a>
       <a class="side-link {% if request.resolver_match.url_name == 'manage_labels' %}active{% endif %}" href="{% url 'manage_labels' %}">
         <i class="bi bi-sliders"></i> Manage Labels
+      </a>
+
+      <div class="side-section">AI Tools</div>
+      <a class="side-link {% if request.resolver_match.url_name == 'email_summary' %}active{% endif %}" href="{% url 'email_summary' %}">
+        <i class="bi bi-stars"></i> AI Summary
       </a>
 
       <div class="side-section">Manage</div>
@@ -316,6 +330,67 @@ hr.dropdown-divider{margin:5px 0;border-color:var(--border)}
     </main>
   </div>
 </div>
+<!-- ── Global Compose Modal ── -->
+<div id="compose-modal" style="display:none;position:fixed;inset:0;z-index:2000;align-items:center;justify-content:center;padding:20px">
+  <div id="compose-modal-bg" style="position:absolute;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(3px)" onclick="closeComposeModal()"></div>
+  <div style="position:relative;background:#fff;border-radius:18px;width:100%;max-width:560px;box-shadow:0 24px 60px rgba(15,23,42,.18);overflow:hidden;z-index:1">
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#6366f1,#7c3aed);padding:18px 22px;display:flex;align-items:center;justify-content:space-between">
+      <div style="color:#fff;font-weight:700;font-size:.95rem;display:flex;align-items:center;gap:8px">
+        <i class="bi bi-stars"></i> Compose New Email with AI
+      </div>
+      <button onclick="closeComposeModal()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    <!-- Body -->
+    <div style="padding:22px">
+      <div style="margin-bottom:14px">
+        <label style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;display:block;margin-bottom:5px">To (recipient email)</label>
+        <input id="cm-to" type="email" placeholder="recipient@example.com"
+               style="width:100%;border:1.5px solid #e2e8f0;border-radius:9px;padding:9px 13px;font-size:.875rem;font-family:inherit;color:#0f172a;background:#f8fafc;transition:border .15s;outline:none"
+               onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e2e8f0'">
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;display:block;margin-bottom:5px">What do you want to say?</label>
+        <textarea id="cm-intent" rows="3" placeholder="e.g. Follow up on yesterday's meeting and ask if they can share the report by Friday."
+                  style="width:100%;border:1.5px solid #e2e8f0;border-radius:9px;padding:9px 13px;font-size:.875rem;font-family:inherit;resize:vertical;line-height:1.6;background:#f8fafc;outline:none;transition:border .15s"
+                  onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e2e8f0'"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:0">
+        <button id="cm-btn-draft" onclick="cmGenerate()"
+                style="background:linear-gradient(135deg,#6366f1,#7c3aed);color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:.82rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s">
+          <i class="bi bi-stars"></i> Draft with AI
+        </button>
+        <span id="cm-status" style="font-size:.8rem;font-weight:500;color:#dc2626"></span>
+      </div>
+
+      <!-- Draft review (hidden until generated) -->
+      <div id="cm-draft-section" style="display:none;margin-top:18px;border-top:1px dashed #e2e8f0;padding-top:16px">
+        <label style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;display:block;margin-bottom:5px">Subject</label>
+        <input id="cm-subject" type="text" placeholder="Subject line"
+               style="width:100%;border:1.5px solid #e2e8f0;border-radius:9px;padding:8px 13px;font-size:.875rem;font-family:inherit;margin-bottom:12px;background:#fff;outline:none;transition:border .15s"
+               onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e2e8f0'">
+        <label style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;display:block;margin-bottom:5px">Email Body</label>
+        <textarea id="cm-body" rows="7"
+                  style="width:100%;border:1.5px solid #e2e8f0;border-radius:9px;padding:10px 13px;font-size:.875rem;font-family:inherit;resize:vertical;line-height:1.65;background:#fff;outline:none;transition:border .15s"
+                  onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e2e8f0'"></textarea>
+        <div style="display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap">
+          <button id="cm-btn-send" onclick="cmSend()"
+                  style="background:#10b981;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:.82rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s">
+            <i class="bi bi-send-fill"></i> Send Email
+          </button>
+          <button onclick="cmGenerate()"
+                  style="background:transparent;color:#6366f1;border:1.5px solid #c7d2fe;border-radius:8px;padding:8px 14px;font-size:.82rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px">
+            <i class="bi bi-arrow-repeat"></i> Regenerate
+          </button>
+          <span id="cm-send-status" style="font-size:.8rem;font-weight:500"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 function openSidebar(){
@@ -328,6 +403,85 @@ function closeSidebar(){
   document.getElementById('sidebar-overlay').classList.remove('open');
   document.body.style.overflow='';
 }
+
+/* ── Compose Modal ── */
+function openComposeModal(){
+  const m = document.getElementById('compose-modal');
+  m.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  closeSidebar();
+  setTimeout(()=>document.getElementById('cm-to').focus(), 80);
+}
+function closeComposeModal(){
+  document.getElementById('compose-modal').style.display = 'none';
+  document.body.style.overflow = '';
+  document.getElementById('cm-draft-section').style.display = 'none';
+  document.getElementById('cm-status').textContent = '';
+  document.getElementById('cm-send-status').textContent = '';
+}
+async function cmGenerate(){
+  const toEl  = document.getElementById('cm-to');
+  const intEl = document.getElementById('cm-intent');
+  const stat  = document.getElementById('cm-status');
+  const btn   = document.getElementById('cm-btn-draft');
+  if(!toEl.value.trim()){ stat.textContent='⚠ Enter a recipient email.'; return; }
+  if(!intEl.value.trim()){ stat.textContent='⚠ Describe what you want to say.'; return; }
+  stat.textContent = '';
+  btn.disabled = true;
+  btn.innerHTML = '<span style="display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sidebarSpin .6s linear infinite"></span> Drafting…';
+  try {
+    const fd = new FormData();
+    fd.append('to_email', toEl.value.trim());
+    fd.append('intent',   intEl.value.trim());
+    fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+    const r = await fetch('{% url "compose_ai" %}', {method:'POST', body:fd});
+    const d = await r.json();
+    if(d.error) throw new Error(d.error);
+    document.getElementById('cm-subject').value = d.subject || '';
+    document.getElementById('cm-body').value    = d.body    || '';
+    document.getElementById('cm-draft-section').style.display = 'block';
+    document.getElementById('cm-send-status').textContent = '';
+    document.getElementById('cm-btn-send').disabled = false;
+    document.getElementById('cm-btn-send').innerHTML = '<i class="bi bi-send-fill"></i> Send Email';
+  } catch(e){ stat.textContent = '⚠ ' + e.message; stat.style.color='#dc2626'; }
+  finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-stars"></i> Draft with AI';
+  }
+}
+async function cmSend(){
+  const btn    = document.getElementById('cm-btn-send');
+  const sstat  = document.getElementById('cm-send-status');
+  const toVal  = document.getElementById('cm-to').value.trim();
+  const subVal = document.getElementById('cm-subject').value.trim();
+  const bodyVal= document.getElementById('cm-body').value.trim();
+  if(!bodyVal){ sstat.textContent='⚠ Body is empty.'; sstat.style.color='#dc2626'; return; }
+  btn.disabled = true;
+  btn.innerHTML = '<span style="display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sidebarSpin .6s linear infinite"></span> Sending…';
+  try {
+    const fd = new FormData();
+    fd.append('to_email', toVal); fd.append('subject', subVal);
+    fd.append('body', bodyVal);
+    fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+    const r = await fetch('{% url "send_compose" %}', {method:'POST', body:fd});
+    const d = await r.json();
+    if(d.error) throw new Error(d.error);
+    sstat.textContent = '✓ Sent!'; sstat.style.color = '#059669';
+    btn.innerHTML = '<i class="bi bi-check2"></i> Sent!';
+    setTimeout(()=>{
+      closeComposeModal();
+      document.getElementById('cm-to').value = '';
+      document.getElementById('cm-intent').value = '';
+    }, 2200);
+  } catch(e){
+    sstat.textContent='⚠ '+e.message; sstat.style.color='#dc2626';
+    btn.disabled=false;
+    btn.innerHTML='<i class="bi bi-send-fill"></i> Send Email';
+  }
+}
 </script>
+<style>
+@keyframes sidebarSpin{to{transform:rotate(360deg)}}
+</style>
 </body>
 </html>
