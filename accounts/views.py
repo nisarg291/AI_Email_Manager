@@ -247,7 +247,7 @@ from google_auth_oauthlib.flow import Flow
 from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_requests
 
-from .models import GoogleAccount, UserProfile, ClassifiedEmail, EmailCategory
+from .models import GoogleAccount, UserProfile, ClassifiedEmail, EmailCategory, UserCustomCategory, ClassificationJob
 from . import services
 
 if settings.DEBUG:
@@ -417,7 +417,12 @@ def toggle_live(request):
     profile = request.user.profile
     profile.live_classification = not profile.live_classification
     profile.save(update_fields=["live_classification"])
-    messages.success(request, f"Live classification {'ENABLED' if profile.live_classification else 'disabled'}.")
+    if profile.live_classification:
+        services.start_live_thread(request.user.pk)
+        messages.success(request, "Live mode ENABLED — new emails will be classified every 3 minutes.")
+    else:
+        services.stop_live_thread(request.user.pk)
+        messages.success(request, "Live mode disabled.")
     return redirect("manage_emails")
 
 
@@ -542,9 +547,30 @@ def email_detail(request, msg_id):
         back_to = "manage_emails"
     return render(request, "email_detail.html", {"email": email, "ce": ce, "back_to": back_to})
 
+import json as _json
+from django.http import JsonResponse
 from django.core.paginator import Paginator
 from .forms import ProfileStep1Form, ProfileStep2Form
 from .models import UserCategoryPreference, EmailCategory
+
+
+@login_required
+def job_status(request, job_id):
+    """JSON endpoint for polling classification job progress."""
+    job = ClassificationJob.objects.filter(user=request.user, pk=job_id).first()
+    if not job:
+        return JsonResponse({"error": "not found"}, status=404)
+    pct = 0
+    if job.total > 0:
+        pct = round(job.processed / job.total * 100)
+    return JsonResponse({
+        "status": job.status,
+        "total": job.total,
+        "processed": job.processed,
+        "already_done": job.already_done,
+        "pct": pct,
+        "error_msg": job.error_msg,
+    })
 
 
 def _ensure_profile(request):
@@ -634,7 +660,10 @@ def onboarding_step3(request):
 
         profile.onboarded = True
         profile.save(update_fields=["onboarded"])
-        messages.success(request, "All set! Run AI classification to get started.")
+        # Pre-create Gmail labels for all categories in the background
+        import threading as _t
+        _t.Thread(target=services.ensure_user_labels, args=(request.user,), daemon=True).start()
+        messages.success(request, "All set! Gmail labels created. Run AI classification to get started.")
         return redirect("dashboard")
 
     # GET: ask AI for relevant categories
@@ -672,8 +701,41 @@ def profile_view(request):
 
 @login_required
 def categories_view(request):
-    """Edit category tier preferences (post-onboarding)."""
+    """Edit category tier preferences + manage custom labels."""
     if request.method == "POST":
+        action = request.POST.get("action", "save_tiers")
+
+        if action == "add_custom":
+            name = request.POST.get("name", "").strip()
+            desc = request.POST.get("description", "").strip()
+            if name:
+                from django.utils.text import slugify
+                slug = slugify(name)[:100]
+                if slug:
+                    obj, created = UserCustomCategory.objects.get_or_create(
+                        user=request.user, slug=slug,
+                        defaults={"name": name, "description": desc},
+                    )
+                    if created:
+                        # Create the Gmail label for it
+                        try:
+                            svc = services.gmail_service(request.user)
+                            services.ensure_label(svc, f"AI/Custom/{name}")
+                        except Exception:
+                            pass
+                        messages.success(request, f'Custom label "{name}" added.')
+                    else:
+                        messages.warning(request, "A label with that name already exists.")
+            return redirect("categories")
+
+        if action == "delete_custom":
+            cid = request.POST.get("custom_id")
+            if cid and cid.isdigit():
+                UserCustomCategory.objects.filter(user=request.user, pk=cid).delete()
+                messages.success(request, "Custom label deleted.")
+            return redirect("categories")
+
+        # default: save tier preferences
         for cat in EmailCategory.objects.all():
             t = request.POST.get(f"tier_{cat.id}")
             if t in {"critical","important","normal","low","ignore"}:
@@ -689,7 +751,11 @@ def categories_view(request):
         cat_groups.setdefault(c.group, []).append(
             {"obj": c, "tier": prefs.get(c.id, c.default_tier)}
         )
-    return render(request, "categories.html", {"cat_groups": cat_groups})
+    custom_cats = request.user.custom_categories.order_by("name")
+    return render(request, "categories.html", {
+        "cat_groups": cat_groups,
+        "custom_cats": custom_cats,
+    })
 
 
 @login_required
@@ -722,37 +788,44 @@ def manage_emails(request):
     if request.method == "POST":
         scope = request.POST.get("scope", "latest200")
         try:
-            result = services.classify_emails(request.user, scope=scope)
-            messages.success(request,
-                f"Scanned {result['scanned']} • {result['already_done']} skipped • "
-                f"{result['newly_processed']} newly processed.")
+            job = services.start_batch_job(request.user, scope)
+            return redirect(f"{reverse('manage_emails')}?job={job.pk}")
         except Exception as exc:
-            messages.error(request, f"Failed: {exc}")
-        return redirect("manage_emails")
+            messages.error(request, f"Failed to start job: {exc}")
+            return redirect("manage_emails")
 
     qs = (ClassifiedEmail.objects.filter(user=request.user)
-          .select_related("category").order_by("-received_at"))
+          .select_related("category", "custom_category").order_by("-received_at"))
 
-    # Filters
-    cat_id = request.GET.get("category")
-    imp = request.GET.get("importance")
-    action = request.GET.get("action")
-    q = request.GET.get("q", "").strip()
-    if cat_id and cat_id.isdigit():    qs = qs.filter(category_id=int(cat_id))
-    if imp and imp.isdigit():          qs = qs.filter(importance=int(imp))
-    if action in {"labeled","trashed","kept"}: qs = qs.filter(action_taken=action)
+    cat_id   = request.GET.get("category")
+    cust_id  = request.GET.get("custom_category")
+    imp      = request.GET.get("importance")
+    action   = request.GET.get("action")
+    q        = request.GET.get("q", "").strip()
+    if cat_id and cat_id.isdigit():   qs = qs.filter(category_id=int(cat_id))
+    if cust_id and cust_id.isdigit(): qs = qs.filter(custom_category_id=int(cust_id))
+    if imp and imp.isdigit():         qs = qs.filter(importance=int(imp))
+    if action in {"labeled","trashed","kept","archived"}: qs = qs.filter(action_taken=action)
     if q: qs = qs.filter(subject__icontains=q) | qs.filter(sender__icontains=q)
 
-    qs = qs[:1000]                                         # cap at 1000
+    qs   = qs[:1000]
     page = Paginator(qs, 50).get_page(request.GET.get("page"))
-    # Show only categories that have at least 1 classified email for this user
-    used_cat_ids = (ClassifiedEmail.objects
-                    .filter(user=request.user, category__isnull=False)
+
+    used_cat_ids = (ClassifiedEmail.objects.filter(user=request.user, category__isnull=False)
                     .values_list("category_id", flat=True).distinct())
-    categories = EmailCategory.objects.filter(id__in=used_cat_ids).order_by("short_label")
+    categories      = EmailCategory.objects.filter(id__in=used_cat_ids).order_by("short_label")
+    custom_cats     = request.user.custom_categories.all()
+    active_job_id   = request.GET.get("job")
+    active_job      = None
+    if active_job_id and active_job_id.isdigit():
+        active_job = ClassificationJob.objects.filter(user=request.user, pk=active_job_id).first()
+
     return render(request, "manage_emails.html", {
-        "page": page, "categories": categories,
+        "page": page, "categories": categories, "custom_cats": custom_cats,
         "scopes": services.SCOPE_QUERIES,
         "live": request.user.profile.live_classification,
-        "current": {"category": cat_id, "importance": imp, "action": action, "q": q},
+        "live_running": services.is_live_running(request.user.pk),
+        "current": {"category": cat_id, "importance": imp, "action": action,
+                    "q": q, "custom_category": cust_id},
+        "active_job": active_job,
     })

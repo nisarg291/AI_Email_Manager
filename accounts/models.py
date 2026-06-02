@@ -244,6 +244,39 @@ class UserProfile(models.Model):
 #         return {x.strip().lower() for x in self.blocked_senders.splitlines() if x.strip()}
 
 
+class UserCustomCategory(models.Model):
+    user        = models.ForeignKey(User, on_delete=models.CASCADE, related_name="custom_categories")
+    name        = models.CharField(max_length=100)
+    slug        = models.SlugField(max_length=100)
+    description = models.TextField(blank=True, help_text="Describe what kinds of emails belong here")
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("user", "slug")]
+
+    def __str__(self): return self.name
+
+
+class ClassificationJob(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("running", "Running"),
+        ("done",    "Done"),
+        ("error",   "Error"),
+    ]
+    user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name="classification_jobs")
+    scope      = models.CharField(max_length=32)
+    status     = models.CharField(max_length=16, choices=STATUS_CHOICES, default="pending")
+    total      = models.IntegerField(default=0)
+    processed  = models.IntegerField(default=0)
+    already_done = models.IntegerField(default=0)
+    error_msg  = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self): return f"Job({self.user_id}, {self.scope}, {self.status})"
+
+
 class ClassifiedEmail(models.Model):
     user            = models.ForeignKey(User, on_delete=models.CASCADE, related_name="classified_emails")
     gmail_id        = models.CharField(max_length=64)
@@ -253,7 +286,8 @@ class ClassifiedEmail(models.Model):
     sender_email    = models.CharField(max_length=200, blank=True)
     snippet         = models.TextField(blank=True)
     received_at     = models.DateTimeField(null=True, blank=True)
-    category        = models.ForeignKey(EmailCategory, on_delete=models.SET_NULL, null=True)
+    category        = models.ForeignKey(EmailCategory, on_delete=models.SET_NULL, null=True, blank=True)
+    custom_category = models.ForeignKey(UserCustomCategory, on_delete=models.SET_NULL, null=True, blank=True)
     importance      = models.IntegerField(default=3)
     is_urgent       = models.BooleanField(default=False)
     is_event        = models.BooleanField(default=False)

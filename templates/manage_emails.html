@@ -1,27 +1,60 @@
-
 {% extends "base.html" %}{% block title %}Manage Emails{% endblock %}
 {% block topbar_title %}Manage Emails{% endblock %}
 {% block body %}
 
+{% if active_job %}
+<div id="job-banner" class="alert-modern alert-info mb-3" data-job-id="{{ active_job.pk }}"
+     data-status-url="{% url 'job_status' active_job.pk %}">
+  <i class="bi bi-cpu-fill"></i>
+  <div style="flex:1">
+    <div class="d-flex justify-content-between align-items-center mb-1">
+      <span id="job-label">
+        {% if active_job.status == "done" %}
+          Done — {{ active_job.processed }} processed, {{ active_job.already_done }} already classified.
+        {% elif active_job.status == "error" %}
+          Error: {{ active_job.error_msg }}
+        {% else %}
+          Classifying emails…
+        {% endif %}
+      </span>
+      <span id="job-pct" class="fw-bold text-primary">
+        {% if active_job.status == "done" %}100%
+        {% elif active_job.total > 0 %}{{ active_job.processed }}/{{ active_job.total }}
+        {% else %}Starting…{% endif %}
+      </span>
+    </div>
+    <div class="progress" style="height:6px;border-radius:4px">
+      <div id="job-bar" class="progress-bar bg-primary"
+           style="width:{% if active_job.status == 'done' %}100{% elif active_job.total > 0 %}{{ active_job.processed|floatformat:0 }}{% else %}0{% endif %}%;transition:width .4s"></div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <div class="card-modern mb-3">
   <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
     <div>
-      <h5 class="mb-1">Run AI classification</h5>
-      <p class="text-muted small mb-0">Already-processed emails are auto-skipped. Click any scope to scan.</p>
+      <h5 class="mb-1">Run AI Classification</h5>
+      <p class="text-muted small mb-0">Emails already processed are skipped. Results appear below when done.</p>
     </div>
     <form method="post" action="{% url 'toggle_live' %}">{% csrf_token %}
       {% if live %}
-        <button class="btn btn-success btn-sm"><i class="bi bi-broadcast"></i> Live ON</button>
+        <button class="btn btn-success btn-sm">
+          <i class="bi bi-broadcast-pin"></i> Live ON
+          {% if live_running %}<span class="badge bg-white text-success ms-1" style="font-size:10px">●&nbsp;Active</span>{% endif %}
+        </button>
       {% else %}
         <button class="btn btn-outline-success btn-sm"><i class="bi bi-broadcast"></i> Turn on live mode</button>
       {% endif %}
     </form>
   </div>
+
   <div class="scope-grid">
     {% for slug, info in scopes.items %}
       {% if slug != "live" %}
-        <form method="post"><input type="hidden" name="scope" value="{{ slug }}">{% csrf_token %}
-          <button class="scope-btn w-100" onclick="this.disabled=true;this.querySelector('.scope-label').innerText='Running…'">
+        <form method="post">
+          <input type="hidden" name="scope" value="{{ slug }}">{% csrf_token %}
+          <button class="scope-btn w-100" onclick="this.disabled=true;this.querySelector('.scope-label').innerText='Starting…'">
             <div class="scope-label"><i class="bi bi-magic"></i> {{ info.2 }}</div>
             <div class="scope-meta">Up to {{ info.1 }} emails</div>
           </button>
@@ -31,14 +64,19 @@
   </div>
 </div>
 
-<form method="get" class="filter-bar">
+<form method="get" class="filter-bar mb-3">
   <i class="bi bi-funnel text-muted"></i>
-  <input name="q" placeholder="Search subject/sender" value="{{ current.q }}" style="min-width:220px">
-  <select name="category" class="form-select form-select-sm" style="max-width:180px">
+  <input name="q" placeholder="Search subject/sender" value="{{ current.q }}" style="min-width:200px">
+  <select name="category" class="form-select form-select-sm" style="max-width:170px">
     <option value="">All categories</option>
     {% for c in categories %}<option value="{{ c.id }}" {% if current.category == c.id|stringformat:"s" %}selected{% endif %}>{{ c.short_label }}</option>{% endfor %}
+    {% if custom_cats %}
+      <optgroup label="── Custom labels ──">
+      {% for c in custom_cats %}<option value="" data-custom="{{ c.id }}">⚡ {{ c.name }}</option>{% endfor %}
+      </optgroup>
+    {% endif %}
   </select>
-  <select name="importance" class="form-select form-select-sm" style="max-width:140px">
+  <select name="importance" class="form-select form-select-sm" style="max-width:130px">
     <option value="">All importance</option>
     <option value="5" {% if current.importance == "5" %}selected{% endif %}>Critical (5)</option>
     <option value="4" {% if current.importance == "4" %}selected{% endif %}>High (4)</option>
@@ -46,11 +84,11 @@
     <option value="2" {% if current.importance == "2" %}selected{% endif %}>Low (2)</option>
     <option value="1" {% if current.importance == "1" %}selected{% endif %}>Junk (1)</option>
   </select>
-  <select name="action" class="form-select form-select-sm" style="max-width:140px">
+  <select name="action" class="form-select form-select-sm" style="max-width:130px">
     <option value="">All actions</option>
-    <option value="labeled" {% if current.action == "labeled" %}selected{% endif %}>Labeled</option>
-    <option value="trashed" {% if current.action == "trashed" %}selected{% endif %}>Trashed</option>
-    <option value="kept" {% if current.action == "kept" %}selected{% endif %}>Kept</option>
+    <option value="labeled"  {% if current.action == "labeled"  %}selected{% endif %}>Labeled</option>
+    <option value="archived" {% if current.action == "archived" %}selected{% endif %}>Archived</option>
+    <option value="trashed"  {% if current.action == "trashed"  %}selected{% endif %}>Trashed</option>
   </select>
   <button class="btn btn-primary btn-sm">Apply</button>
   <a href="{% url 'manage_emails' %}" class="btn btn-link btn-sm">Reset</a>
@@ -58,13 +96,32 @@
 
 <div class="card-modern p-0">
   <table class="email-table">
-    <thead><tr><th>From / Subject</th><th>Category</th><th>Importance</th><th>Status</th><th>When</th></tr></thead>
+    <thead>
+      <tr>
+        <th>From / Subject</th>
+        <th>Category</th>
+        <th>Importance</th>
+        <th>Status</th>
+        <th>When</th>
+      </tr>
+    </thead>
     <tbody>
     {% for e in page %}
       <tr class="email-row {% if e.action_taken == 'trashed' %}trashed{% endif %}"
           onclick="window.location='{% url 'email_detail' e.gmail_id %}?back=manage_emails'">
-        <td><div class="sender text-truncate" style="max-width:380px">{{ e.sender }}</div><div class="subject text-truncate" style="max-width:380px">{{ e.subject }}</div></td>
-        <td>{% if e.category %}<span class="badge-cat">{{ e.category.short_label }}</span>{% endif %}</td>
+        <td>
+          <div class="sender text-truncate" style="max-width:360px">{{ e.sender }}</div>
+          <div class="subject text-truncate" style="max-width:360px">{{ e.subject }}</div>
+        </td>
+        <td>
+          {% if e.custom_category %}
+            <span class="badge-cat" style="background:#7c3aed22;color:#7c3aed">⚡ {{ e.custom_category.name }}</span>
+          {% elif e.category %}
+            <span class="badge-cat">{{ e.category.short_label }}</span>
+          {% else %}
+            <span class="badge-cat" style="background:#f1f5f9;color:#64748b">Other</span>
+          {% endif %}
+        </td>
         <td>
           {% if e.is_urgent %}<span class="badge-tier tier-critical">🔥 Urgent</span>
           {% elif e.importance >= 5 %}<span class="badge-tier tier-critical">Critical</span>
@@ -73,11 +130,17 @@
           {% elif e.importance == 2 %}<span class="badge-tier tier-low">Low</span>
           {% else %}<span class="badge-tier tier-ignore">Junk</span>{% endif %}
         </td>
-        <td>{% if e.action_taken == 'trashed' %}<span class="text-danger small"><i class="bi bi-trash"></i> Trashed</span>{% else %}<span class="text-success small"><i class="bi bi-check2"></i> Labeled</span>{% endif %}</td>
+        <td>
+          {% if e.action_taken == 'trashed' %}<span class="text-danger small"><i class="bi bi-trash"></i> Trashed</span>
+          {% elif e.action_taken == 'archived' %}<span class="text-secondary small"><i class="bi bi-archive"></i> Archived</span>
+          {% else %}<span class="text-success small"><i class="bi bi-check2"></i> Labeled</span>{% endif %}
+        </td>
         <td class="text-muted small">{{ e.received_at|date:"M d, H:i" }}</td>
       </tr>
     {% empty %}
-      <tr><td colspan="5" class="text-center text-muted py-5">No emails match. Try clearing filters or running AI on more emails.</td></tr>
+      <tr><td colspan="5" class="text-center text-muted py-5">
+        No emails yet. Click a scan button above to classify emails from your inbox.
+      </td></tr>
     {% endfor %}
     </tbody>
   </table>
@@ -91,5 +154,45 @@
     {% if page.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}&q={{ current.q }}&category={{ current.category }}&importance={{ current.importance }}&action={{ current.action }}">»</a></li>{% endif %}
   </ul>
 </nav>
+{% endif %}
+
+{% if active_job and active_job.status != "done" and active_job.status != "error" %}
+<script>
+(function(){
+  const banner  = document.getElementById('job-banner');
+  const label   = document.getElementById('job-label');
+  const pct     = document.getElementById('job-pct');
+  const bar     = document.getElementById('job-bar');
+  const url     = banner.dataset.statusUrl;
+
+  function poll(){
+    fetch(url).then(r=>r.json()).then(d=>{
+      if(d.status==='done'){
+        label.textContent = `Done — ${d.processed} classified, ${d.already_done} already done.`;
+        pct.textContent   = '100%';
+        bar.style.width   = '100%';
+        banner.className  = banner.className.replace('alert-info','alert-success');
+        setTimeout(()=>{ window.location.href = window.location.pathname; }, 1500);
+        return;
+      }
+      if(d.status==='error'){
+        label.textContent = 'Error: ' + (d.error_msg || 'unknown');
+        banner.className  = banner.className.replace('alert-info','alert-danger');
+        return;
+      }
+      if(d.total>0){
+        const p = Math.round(d.processed/d.total*100);
+        pct.textContent   = `${d.processed} / ${d.total}`;
+        bar.style.width   = p+'%';
+        label.textContent = `Classifying… ${p}% complete`;
+      } else {
+        label.textContent = 'Fetching emails from Gmail…';
+      }
+      setTimeout(poll, 2000);
+    }).catch(()=>setTimeout(poll,4000));
+  }
+  setTimeout(poll, 1500);
+})();
+</script>
 {% endif %}
 {% endblock %}

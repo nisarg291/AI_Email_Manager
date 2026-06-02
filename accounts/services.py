@@ -598,6 +598,7 @@
 import base64
 import json
 import re
+import threading as _threading
 from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime, parseaddr
 
@@ -606,7 +607,7 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from openai import OpenAI
 
-from .models import GoogleAccount, EmailCategory, ClassifiedEmail
+from .models import GoogleAccount, EmailCategory, ClassifiedEmail, UserCustomCategory, ClassificationJob
 
 
 # -------- Gmail client --------
@@ -1185,6 +1186,287 @@ def list_by_query(user, query, max_results=100):
         token = resp.get("nextPageToken")
         if not token: break
     return out
+
+
+# ═══════════════════════════════════════════════════════════════
+# LIVE MODE — daemon thread per user
+# ═══════════════════════════════════════════════════════════════
+_live_workers: dict = {}
+_live_lock = _threading.Lock()
+
+
+def is_live_running(user_id: int) -> bool:
+    return user_id in _live_workers
+
+
+def start_live_thread(user_id: int) -> None:
+    with _live_lock:
+        if user_id in _live_workers:
+            return
+        stop_ev = _threading.Event()
+        _live_workers[user_id] = stop_ev
+    t = _threading.Thread(target=_live_worker, args=(user_id, stop_ev),
+                          daemon=True, name=f"live-{user_id}")
+    t.start()
+
+
+def stop_live_thread(user_id: int) -> None:
+    with _live_lock:
+        ev = _live_workers.pop(user_id, None)
+    if ev:
+        ev.set()
+
+
+def _live_worker(user_id: int, stop_ev: _threading.Event) -> None:
+    from django.contrib.auth.models import User as _User
+    while not stop_ev.is_set():
+        try:
+            user = _User.objects.select_related("profile", "google_account").get(pk=user_id)
+            if not user.profile.live_classification:
+                break
+            classify_emails(user, scope="live")
+        except Exception as exc:
+            print(f"[live_worker uid={user_id}] {exc}")
+        stop_ev.wait(180)  # poll every 3 minutes
+    with _live_lock:
+        _live_workers.pop(user_id, None)
+
+
+# ═══════════════════════════════════════════════════════════════
+# BACKGROUND BATCH JOB — full classify with custom categories + progress
+# ═══════════════════════════════════════════════════════════════
+
+def start_batch_job(user, scope: str) -> "ClassificationJob":
+    """Create a ClassificationJob record and launch a background thread."""
+    job = ClassificationJob.objects.create(user=user, scope=scope, status="pending")
+    t = _threading.Thread(target=_run_job, args=(user.pk, job.pk),
+                          daemon=True, name=f"batch-{user.pk}-{job.pk}")
+    t.start()
+    return job
+
+
+def _run_job(user_id: int, job_id: int) -> None:  # noqa: C901
+    from django.contrib.auth.models import User as _User
+
+    def _save_job(**kw):
+        ClassificationJob.objects.filter(pk=job_id).update(**kw)
+
+    try:
+        _save_job(status="running")
+        user = _User.objects.select_related("profile", "google_account").get(pk=user_id)
+        job_obj = ClassificationJob.objects.get(pk=job_id)
+
+        scope = job_obj.scope
+        query, max_results, _ = SCOPE_QUERIES.get(scope, SCOPE_QUERIES["latest200"])
+
+        svc = gmail_service(user)
+        profile = getattr(user, "profile", None)
+        profile_text = _profile_blurb(profile)
+        org_domain = (profile.org_domain or "").lower().strip() if profile else ""
+        blocked = profile.blocked_set() if profile else set()
+
+        # ---- categories ----
+        system_cats = list(EmailCategory.objects.all())
+        cat_by_slug = {c.slug: c for c in system_cats}
+        custom_cats = list(user.custom_categories.all())
+        custom_by_slug = {c.slug: c for c in custom_cats}
+
+        other_cat  = cat_by_slug.get("other")
+        myorg_cat  = cat_by_slug.get("myorg")
+        urgent_cat = cat_by_slug.get("urgent")
+
+        sys_listing = "\n".join(
+            f"- {c.slug}: {c.short_label} ({c.group}) — {c.description}"
+            for c in system_cats if c.slug not in {"myorg", "urgent"}
+        )
+        cust_listing = "\n".join(
+            f"- custom_{c.slug}: {c.name} (Custom) — {c.description}"
+            for c in custom_cats
+        )
+        full_listing = sys_listing
+        if cust_listing:
+            full_listing += "\n\nUSER-DEFINED CATEGORIES (prefer these when they clearly match):\n" + cust_listing
+        full_listing += "\n- other: Other/Uncategorised — for everything that doesn't fit above"
+
+        msgs = list_messages(user, query=query, max_results=max_results)
+        all_ids = [m["id"] for m in msgs]
+        done_set = set(ClassifiedEmail.objects.filter(user=user, gmail_id__in=all_ids)
+                       .values_list("gmail_id", flat=True))
+        new_msgs = [m for m in msgs if m["id"] not in done_set]
+
+        _save_job(total=len(new_msgs), already_done=len(done_set))
+        processed_count = 0
+
+        for m in new_msgs:
+            meta = get_message_meta(svc, m["id"])
+            sender_domain = meta["from_email"].split("@")[-1] if "@" in meta["from_email"] else ""
+
+            # --- blocked sender ---
+            if meta["from_email"] in blocked or sender_domain in blocked:
+                try: trash_message(svc, m["id"])
+                except Exception: pass
+                ClassifiedEmail.objects.update_or_create(
+                    user=user, gmail_id=m["id"],
+                    defaults={"subject": meta["subject"][:500], "sender": meta["from"][:300],
+                              "sender_email": meta["from_email"], "snippet": meta["snippet"],
+                              "received_at": meta["received"], "action_taken": "trashed",
+                              "reason": "Blocked sender."},
+                )
+                processed_count += 1
+                _save_job(processed=processed_count)
+                continue
+
+            # --- AI prompt ---
+            prompt = f"""You are an enterprise email triage assistant.
+
+USER PROFILE
+{profile_text}
+
+EMAIL
+From: {meta['from']}
+Subject: {meta['subject']}
+Snippet: {meta['snippet']}
+
+Pick EXACTLY ONE category slug from this list:
+{full_listing}
+
+For user-defined categories, use the slug as "custom_<slug>" (e.g. "custom_myproject").
+For unmatched emails, use "other".
+
+Also decide:
+- importance: 1 (junk) to 5 (critical)
+- is_urgent: true ONLY if action is needed within 24-48h
+- action: "keep", "archive", or "trash"
+  * Never trash personal, financial, security, legal, healthcare, interview, or government emails.
+  * Trash only obvious spam, promotions, low-value newsletters, irrelevant marketing.
+- is_event: true if it references a meeting, interview, appointment, deadline, webinar
+- event_when: short time/date text if is_event=true
+- reason: one short sentence
+
+Respond ONLY with valid JSON:
+{{"category":"<slug>","importance":3,"is_urgent":false,"action":"keep","is_event":false,"event_when":"","reason":""}}
+"""
+            try:
+                resp = _openai.chat.completions.create(
+                    model=settings.OPENAI_MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    response_format={"type": "json_object"},
+                    temperature=0.2,
+                )
+                data = json.loads(resp.choices[0].message.content)
+            except Exception as exc:
+                data = {"category": "other", "importance": 2, "is_urgent": False,
+                        "action": "keep", "is_event": False, "event_when": "",
+                        "reason": f"AI error: {exc}"}
+
+            raw_slug = data.get("category", "other")
+            cat = None
+            custom_cat_obj = None
+
+            if raw_slug.startswith("custom_"):
+                inner = raw_slug[7:]
+                custom_cat_obj = custom_by_slug.get(inner)
+                cat = other_cat
+            elif raw_slug == "other":
+                cat = other_cat
+            else:
+                cat = cat_by_slug.get(raw_slug) or other_cat
+
+            ai_importance = max(1, min(5, int(data.get("importance", 3))))
+            is_urgent     = bool(data.get("is_urgent", False))
+            ai_action     = data.get("action", "keep")
+
+            user_tier = (profile.tier_for(cat) if (profile and cat)
+                         else (cat.default_tier if cat else "normal"))
+
+            if user_tier == "critical":
+                final_action = "keep"; importance = max(ai_importance, 5)
+            elif user_tier == "important":
+                final_action = "keep"; importance = max(ai_importance, 4)
+            elif user_tier == "normal":
+                final_action = ai_action if ai_action != "trash" else "keep"
+                importance = ai_importance
+            elif user_tier == "low":
+                final_action = "archive" if ai_action == "keep" else ai_action
+                importance = min(ai_importance, 3)
+            else:  # ignore
+                final_action = "trash"; importance = 1
+
+            # Gmail labels
+            label_ids = []
+            try:
+                if custom_cat_obj:
+                    label_ids.append(ensure_label(svc, f"AI/Custom/{custom_cat_obj.name}"))
+                elif cat and cat.slug != "other":
+                    label_ids.append(ensure_label(svc, f"AI/{cat.short_label}"))
+                else:
+                    label_ids.append(ensure_label(svc, "AI/Other"))
+                if org_domain and sender_domain == org_domain and myorg_cat:
+                    label_ids.append(ensure_label(svc, f"AI/{myorg_cat.short_label}"))
+                if is_urgent and urgent_cat:
+                    label_ids.append(ensure_label(svc, f"AI/{urgent_cat.short_label}"))
+                if user_tier == "critical":
+                    label_ids.append(ensure_label(svc, "AI/⭐ Critical"))
+                elif user_tier == "important":
+                    label_ids.append(ensure_label(svc, "AI/⭐ Important"))
+                apply_labels(svc, m["id"], label_ids)
+            except Exception:
+                pass
+
+            # Execute action
+            try:
+                if final_action == "trash":
+                    trash_message(svc, m["id"])
+                elif final_action == "archive":
+                    svc.users().messages().modify(
+                        userId="me", id=m["id"],
+                        body={"removeLabelIds": ["INBOX"]}
+                    ).execute()
+            except Exception:
+                pass
+
+            ClassifiedEmail.objects.update_or_create(
+                user=user, gmail_id=m["id"],
+                defaults={
+                    "thread_id": meta["thread_id"],
+                    "subject": meta["subject"][:500], "sender": meta["from"][:300],
+                    "sender_email": meta["from_email"], "snippet": meta["snippet"],
+                    "received_at": meta["received"],
+                    "category": cat, "custom_category": custom_cat_obj,
+                    "importance": importance, "is_urgent": is_urgent,
+                    "reason": data.get("reason", ""),
+                    "action_taken": ("trashed" if final_action == "trash"
+                                     else "archived" if final_action == "archive"
+                                     else "labeled"),
+                    "is_event": bool(data.get("is_event", False)),
+                    "event_when": (data.get("event_when") or "")[:120],
+                    "unsubscribe_url": (meta.get("unsubscribe_url") or "")[:1000],
+                },
+            )
+            processed_count += 1
+            _save_job(processed=processed_count)
+
+        _save_job(status="done")
+
+    except Exception as exc:
+        try:
+            _save_job(status="error", error_msg=str(exc)[:500])
+        except Exception:
+            pass
+
+
+def ensure_user_labels(user) -> None:
+    """Pre-create Gmail labels for all categories. Call after onboarding."""
+    try:
+        svc = gmail_service(user)
+        for cat in EmailCategory.objects.all():
+            ensure_label(svc, f"AI/{cat.short_label}")
+        for cc in user.custom_categories.all():
+            ensure_label(svc, f"AI/Custom/{cc.name}")
+        for name in ("AI/Other", "AI/⭐ Critical", "AI/⭐ Important"):
+            ensure_label(svc, name)
+    except Exception as exc:
+        print(f"ensure_user_labels: {exc}")
 
 
 def suggest_relevant_categories(profile, max_count=20):
