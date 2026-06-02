@@ -877,7 +877,7 @@ def categories_view(request):
                     if created:
                         try:
                             svc = services.gmail_service(request.user)
-                            services.ensure_label(svc, f"Custom/{name}")
+                            services.ensure_label(svc, name)
                         except Exception:
                             pass
                         messages.success(request, f'Custom label "{name}" added.')
@@ -891,7 +891,7 @@ def categories_view(request):
             if cid and cid.isdigit():
                 cc = UserCustomCategory.objects.filter(user=request.user, pk=cid).first()
                 if cc:
-                    label_name = f"Custom/{cc.name}"
+                    label_name = cc.name
                     cc.delete()
                     try:
                         svc = services.gmail_service(request.user)

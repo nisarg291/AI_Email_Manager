@@ -1701,7 +1701,7 @@ Respond ONLY with valid JSON:
             label_ids = []
             try:
                 if custom_cat_obj:
-                    label_ids.append(ensure_label(svc, f"Custom/{custom_cat_obj.name}"))
+                    label_ids.append(ensure_label(svc, custom_cat_obj.name))
                 elif cat and cat.slug != "other":
                     label_ids.append(ensure_label(svc, cat.short_label))
                 else:
@@ -1769,7 +1769,7 @@ def ensure_user_labels(user) -> None:
         for pref in active_cats:
             ensure_label(svc, pref.category.short_label)
         for cc in user.custom_categories.all():
-            ensure_label(svc, f"Custom/{cc.name}")
+            ensure_label(svc, cc.name)
         for name in ("Other", "⭐ Critical", "⭐ Important"):
             ensure_label(svc, name)
     except Exception as exc:
