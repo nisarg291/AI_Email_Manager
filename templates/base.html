@@ -234,6 +234,9 @@ hr.dropdown-divider{margin:5px 0;border-color:var(--border)}
       <a class="side-link {% if request.resolver_match.url_name == 'manage_emails' %}active{% endif %}" href="{% url 'manage_emails' %}">
         <i class="bi bi-inbox-fill"></i> Manage
       </a>
+      <a class="side-link {% if request.resolver_match.url_name == 'email_summary' %}active{% endif %}" href="{% url 'email_summary' %}">
+        <i class="bi bi-stars"></i> AI Summary
+      </a>
       <a class="side-link {% if request.resolver_match.url_name == 'sent' %}active{% endif %}" href="{% url 'sent' %}">
         <i class="bi bi-send-fill"></i> Sent
       </a>
@@ -251,11 +254,6 @@ hr.dropdown-divider{margin:5px 0;border-color:var(--border)}
       </a>
       <a class="side-link {% if request.resolver_match.url_name == 'manage_labels' %}active{% endif %}" href="{% url 'manage_labels' %}">
         <i class="bi bi-sliders"></i> Manage Labels
-      </a>
-
-      <div class="side-section">AI Tools</div>
-      <a class="side-link {% if request.resolver_match.url_name == 'email_summary' %}active{% endif %}" href="{% url 'email_summary' %}">
-        <i class="bi bi-stars"></i> AI Summary
       </a>
 
       <div class="side-section">Manage</div>

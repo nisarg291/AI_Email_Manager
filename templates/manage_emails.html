@@ -46,16 +46,21 @@
       <h5 class="mb-1 fw-bold"><i class="bi bi-cpu text-primary me-2"></i>Run AI Classification</h5>
       <p class="text-muted small mb-0">Select a range — already-classified emails are skipped automatically.</p>
     </div>
-    <form method="post" action="{% url 'toggle_live' %}">{% csrf_token %}
-      {% if live %}
-        <button class="btn btn-success btn-sm">
-          <i class="bi bi-broadcast-pin"></i> Live ON
-          {% if live_running %}<span class="badge bg-white text-success ms-1" style="font-size:10px">●&nbsp;Active</span>{% endif %}
-        </button>
-      {% else %}
-        <button class="btn btn-outline-success btn-sm"><i class="bi bi-broadcast"></i> Live mode</button>
-      {% endif %}
-    </form>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <a href="{% url 'email_summary' %}" class="btn btn-sm" style="background:linear-gradient(135deg,#6366f1,#7c3aed);color:#fff;border:none;font-weight:600;display:inline-flex;align-items:center;gap:6px">
+        <i class="bi bi-stars"></i> AI Summary
+      </a>
+      <form method="post" action="{% url 'toggle_live' %}">{% csrf_token %}
+        {% if live %}
+          <button class="btn btn-success btn-sm">
+            <i class="bi bi-broadcast-pin"></i> Live ON
+            {% if live_running %}<span class="badge bg-white text-success ms-1" style="font-size:10px">●&nbsp;Active</span>{% endif %}
+          </button>
+        {% else %}
+          <button class="btn btn-outline-success btn-sm"><i class="bi bi-broadcast"></i> Live mode</button>
+        {% endif %}
+      </form>
+    </div>
   </div>
 
   <!-- Job progress card — shown when a job is running or pending -->
