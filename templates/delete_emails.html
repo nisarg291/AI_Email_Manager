@@ -36,27 +36,27 @@
 
 <div class="del-grid">
   <div class="del-card">
-    <div class="del-icon" style="background:#fff7ed">🗓</div>
-    <div class="del-title">Older than 1 month</div>
-    <div class="del-desc">Delete all emails received more than 30 days ago from your entire Gmail account.</div>
-    <form method="post" onsubmit="return confirm('Permanently delete ALL emails older than 30 days? This cannot be undone.');">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="older_1month">
-      <button type="submit" class="del-btn del-btn-orange">
-        <i class="bi bi-calendar-x"></i> Delete emails &gt; 1 month old
-      </button>
-    </form>
-  </div>
-
-  <div class="del-card">
     <div class="del-icon" style="background:#fef2f2">📅</div>
     <div class="del-title">Older than 1 year</div>
     <div class="del-desc">Delete all emails received more than 1 year ago. Useful for clearing old clutter.</div>
     <form method="post" onsubmit="return confirm('Permanently delete ALL emails older than 1 year? This cannot be undone.');">
       {% csrf_token %}
       <input type="hidden" name="action" value="older_1year">
-      <button type="submit" class="del-btn del-btn-danger">
+      <button type="submit" class="del-btn del-btn-orange">
         <i class="bi bi-calendar2-x"></i> Delete emails &gt; 1 year old
+      </button>
+    </form>
+  </div>
+
+  <div class="del-card">
+    <div class="del-icon" style="background:#fef2f2">🗑️</div>
+    <div class="del-title">Older than 2 years</div>
+    <div class="del-desc">Delete all emails received more than 2 years ago. Good for deep inbox cleanup.</div>
+    <form method="post" onsubmit="return confirm('Permanently delete ALL emails older than 2 years? This cannot be undone.');">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="older_2years">
+      <button type="submit" class="del-btn del-btn-danger">
+        <i class="bi bi-calendar3-range"></i> Delete emails &gt; 2 years old
       </button>
     </form>
   </div>

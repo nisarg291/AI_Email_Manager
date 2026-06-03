@@ -1162,10 +1162,10 @@ def delete_emails_view(request):
     if request.method == "POST":
         action = request.POST.get("action")
         try:
-            if action == "older_1month":
-                count = services.delete_emails_query(request.user, "older_than:30d")
-            elif action == "older_1year":
+            if action == "older_1year":
                 count = services.delete_emails_query(request.user, "older_than:1y")
+            elif action == "older_2years":
+                count = services.delete_emails_query(request.user, "older_than:2y")
             elif action == "daterange":
                 from_date = request.POST.get("from_date", "").strip()
                 to_date   = request.POST.get("to_date", "").strip()

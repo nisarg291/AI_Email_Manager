@@ -116,8 +116,8 @@
        data-job-id="{{ active_job.pk }}"
        data-status-url="{% url 'job_status' active_job.pk %}">
     <div class="job-card-title">
-      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#6366f1;animation:scopepulse 1s infinite"></span>
-      AI Classification in progress…
+      <span id="job-dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#6366f1;animation:scopepulse 1s infinite"></span>
+      <span id="job-title-text">AI Classification in progress…</span>
     </div>
     <div class="job-card-sub" id="job-sub">
       {% if active_job.total > 0 %}Processing {{ active_job.processed }} of {{ active_job.total }} emails{% else %}Fetching emails from Gmail…{% endif %}
@@ -502,8 +502,9 @@ function onScopeClick(form) {
     bar.style.width  = '0%';
     card.style.background  = 'linear-gradient(135deg,#fef2f2,#fff1f1)';
     card.style.borderColor = '#fca5a5';
-    card.querySelector('.job-card-title span').style.background = '#ef4444';
-    card.querySelector('.job-card-title').childNodes[1].textContent = ' Classification stopped.';
+    document.getElementById('job-dot').style.background = '#ef4444';
+    document.getElementById('job-dot').style.animation = 'none';
+    document.getElementById('job-title-text').textContent = 'Classification stopped.';
     if(grid) grid.style.display = '';
   }
 
@@ -522,8 +523,9 @@ function onScopeClick(form) {
         bar.style.width   = '100%';
         card.style.background = 'linear-gradient(135deg,#f0fdf4,#dcfce7)';
         card.style.borderColor = '#86efac';
-        card.querySelector('.job-card-title span').style.background = '#22c55e';
-        card.querySelector('.job-card-title').childNodes[1].textContent = ' Done — results updated below.';
+        document.getElementById('job-dot').style.background = '#22c55e';
+        document.getElementById('job-dot').style.animation = 'none';
+        document.getElementById('job-title-text').textContent = 'Classification complete!';
         if(grid) grid.style.display = '';
         setTimeout(()=>{ window.location.href = window.location.pathname; }, 2000);
         return;
