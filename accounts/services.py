@@ -1614,153 +1614,219 @@ def _run_job(user_id: int, job_id: int) -> None:  # noqa: C901
         _save_job(total=len(new_msgs), already_done=len(done_set))
         processed_count = 0
 
-        for m in new_msgs:
-            meta = get_message_meta(svc, m["id"])
-            sender_domain = meta["from_email"].split("@")[-1] if "@" in meta["from_email"] else ""
+        # ── Label cache: fetch ALL labels ONCE, reuse for entire job ─────────
+        # (Previously ensure_label() listed all labels on every call — ~600 API
+        #  calls for 200 emails with 3 labels each. Now: just 1 call up front.)
+        try:
+            _label_cache = {l["name"]: l["id"]
+                            for l in svc.users().labels().list(userId="me").execute().get("labels", [])}
+        except Exception:
+            _label_cache = {}
 
-            # --- blocked sender ---
-            if meta["from_email"] in blocked or sender_domain in blocked:
-                try: trash_message(svc, m["id"])
-                except Exception: pass
-                ClassifiedEmail.objects.update_or_create(
-                    user=user, gmail_id=m["id"],
-                    defaults={"subject": meta["subject"][:500], "sender": meta["from"][:300],
-                              "sender_email": meta["from_email"], "snippet": meta["snippet"],
-                              "received_at": meta["received"], "action_taken": "trashed",
-                              "reason": "Blocked sender."},
-                )
-                processed_count += 1
-                _save_job(processed=processed_count)
-                continue
+        def _ensure_label_cached(name: str) -> str:
+            if name in _label_cache:
+                return _label_cache[name]
+            try:
+                lid = svc.users().labels().create(userId="me", body={
+                    "name": name, "labelListVisibility": "labelShow",
+                    "messageListVisibility": "show",
+                }).execute()["id"]
+                _label_cache[name] = lid
+                return lid
+            except Exception:
+                return ""
 
-            # --- AI prompt ---
+        # ── Batch AI classification: 10 emails per OpenAI call ───────────────
+        # (Previously: 200 individual calls. Now: ~20 calls. ~10x speedup.)
+        BATCH_SIZE = 10
+
+        def _classify_batch(batch_metas):
+            n = len(batch_metas)
+            items = "\n".join(
+                f'[{i}] From: {m["from"]} | Subject: {m["subject"]} | Snippet: {m["snippet"][:200]}'
+                for i, m in enumerate(batch_metas)
+            )
             prompt = f"""You are an enterprise email triage assistant.
 
 USER PROFILE
 {profile_text}
 
-EMAIL
-From: {meta['from']}
-Subject: {meta['subject']}
-Snippet: {meta['snippet']}
-
-Pick EXACTLY ONE category slug from this list:
+CATEGORIES
 {full_listing}
 
-For user-defined categories, use the slug as "custom_<slug>" (e.g. "custom_myproject").
-For unmatched emails, use "other".
+For user-defined categories use "custom_<slug>". For unmatched, use "other".
 
-Also decide:
+Classify each of the {n} emails below.
+Return a JSON object with key "results" — an array of exactly {n} objects in order.
+Each object: {{"idx":0,"category":"<slug>","importance":3,"is_urgent":false,"action":"keep","is_event":false,"event_when":"","reason":""}}
+
+Rules:
 - importance: 1 (junk) to 5 (critical)
-- is_urgent: true ONLY if action is needed within 24-48h
+- is_urgent: true ONLY if action needed within 24-48h
 - action: "keep", "archive", or "trash"
   * Never trash personal, financial, security, legal, healthcare, interview, or government emails.
-  * Trash only obvious spam, promotions, low-value newsletters, irrelevant marketing.
-- is_event: true if it references a meeting, interview, appointment, deadline, webinar
-- event_when: short time/date text if is_event=true
-- reason: one short sentence
+  * Trash only obvious spam, promotions, low-value newsletters.
 
-Respond ONLY with valid JSON:
-{{"category":"<slug>","importance":3,"is_urgent":false,"action":"keep","is_event":false,"event_when":"","reason":""}}
+EMAILS
+{items}
 """
-            try:
-                resp = _openai.chat.completions.create(
-                    model=settings.OPENAI_MODEL,
-                    messages=[{"role": "user", "content": prompt}],
-                    response_format={"type": "json_object"},
-                    temperature=0.2,
-                )
-                data = json.loads(resp.choices[0].message.content)
-            except Exception as exc:
-                data = {"category": "other", "importance": 2, "is_urgent": False,
-                        "action": "keep", "is_event": False, "event_when": "",
-                        "reason": f"AI error: {exc}"}
-
-            raw_slug = data.get("category", "other")
-            cat = None
-            custom_cat_obj = None
-
-            if raw_slug.startswith("custom_"):
-                inner = raw_slug[7:]
-                custom_cat_obj = custom_by_slug.get(inner)
-                cat = other_cat
-            elif raw_slug == "other":
-                cat = other_cat
-            else:
-                cat = cat_by_slug.get(raw_slug) or other_cat
-
-            ai_importance = max(1, min(5, int(data.get("importance", 3))))
-            is_urgent     = bool(data.get("is_urgent", False))
-            ai_action     = data.get("action", "keep")
-
-            user_tier = (profile.tier_for(cat) if (profile and cat)
-                         else (cat.default_tier if cat else "normal"))
-
-            if user_tier == "critical":
-                final_action = "keep"; importance = max(ai_importance, 5)
-            elif user_tier == "important":
-                final_action = "keep"; importance = max(ai_importance, 4)
-            elif user_tier == "normal":
-                final_action = ai_action if ai_action != "trash" else "keep"
-                importance = ai_importance
-            elif user_tier == "low":
-                final_action = "archive" if ai_action == "keep" else ai_action
-                importance = min(ai_importance, 3)
-            else:  # ignore
-                final_action = "trash"; importance = 1
-
-            # Gmail labels
-            label_ids = []
-            try:
-                if custom_cat_obj:
-                    label_ids.append(ensure_label(svc, custom_cat_obj.name))
-                elif cat and cat.slug != "other":
-                    label_ids.append(ensure_label(svc, cat.short_label))
-                else:
-                    label_ids.append(ensure_label(svc, "Other"))
-                if org_domain and sender_domain == org_domain and myorg_cat:
-                    label_ids.append(ensure_label(svc, myorg_cat.short_label))
-                if is_urgent and urgent_cat:
-                    label_ids.append(ensure_label(svc, urgent_cat.short_label))
-                if user_tier == "critical":
-                    label_ids.append(ensure_label(svc, "⭐ Critical"))
-                elif user_tier == "important":
-                    label_ids.append(ensure_label(svc, "⭐ Important"))
-                apply_labels(svc, m["id"], label_ids)
-            except Exception:
-                pass
-
-            # Execute action
-            try:
-                if final_action == "trash":
-                    trash_message(svc, m["id"])
-                elif final_action == "archive":
-                    svc.users().messages().modify(
-                        userId="me", id=m["id"],
-                        body={"removeLabelIds": ["INBOX"]}
-                    ).execute()
-            except Exception:
-                pass
-
-            ClassifiedEmail.objects.update_or_create(
-                user=user, gmail_id=m["id"],
-                defaults={
-                    "thread_id": meta["thread_id"],
-                    "subject": meta["subject"][:500], "sender": meta["from"][:300],
-                    "sender_email": meta["from_email"], "snippet": meta["snippet"],
-                    "received_at": meta["received"],
-                    "category": cat, "custom_category": custom_cat_obj,
-                    "importance": importance, "is_urgent": is_urgent,
-                    "reason": data.get("reason", ""),
-                    "action_taken": ("trashed" if final_action == "trash"
-                                     else "archived" if final_action == "archive"
-                                     else "labeled"),
-                    "is_event": bool(data.get("is_event", False)),
-                    "event_when": (data.get("event_when") or "")[:120],
-                    "unsubscribe_url": (meta.get("unsubscribe_url") or "")[:1000],
-                },
+            resp = _openai.chat.completions.create(
+                model=settings.OPENAI_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                temperature=0.2,
             )
-            processed_count += 1
+            parsed = json.loads(resp.choices[0].message.content)
+            results = parsed.get("results", [])
+            if isinstance(results, dict):
+                results = list(results.values())
+            while len(results) < n:
+                results.append({"category": "other", "importance": 2, "is_urgent": False,
+                                 "action": "keep", "is_event": False, "event_when": "", "reason": ""})
+            return results[:n]
+
+        # ── Main loop: process in batches of BATCH_SIZE ───────────────────────
+        idx = 0
+        while idx < len(new_msgs):
+            batch_msgs = new_msgs[idx:idx + BATCH_SIZE]
+            idx += BATCH_SIZE
+
+            # Fetch metadata for the batch
+            batch_metas = []
+            for m in batch_msgs:
+                try:
+                    meta = get_message_meta(svc, m["id"])
+                except Exception:
+                    meta = {"id": m["id"], "thread_id": "", "subject": "(no subject)",
+                            "from": "", "from_email": "", "snippet": "",
+                            "received": None, "label_ids": [], "unsubscribe_url": ""}
+                batch_metas.append(meta)
+
+            # Handle blocked senders immediately; collect the rest for AI
+            to_classify = []
+            for m, meta in zip(batch_msgs, batch_metas):
+                sender_domain = meta["from_email"].split("@")[-1] if "@" in meta["from_email"] else ""
+                if meta["from_email"] in blocked or sender_domain in blocked:
+                    try: trash_message(svc, m["id"])
+                    except Exception: pass
+                    ClassifiedEmail.objects.update_or_create(
+                        user=user, gmail_id=m["id"],
+                        defaults={"subject": meta["subject"][:500], "sender": meta["from"][:300],
+                                  "sender_email": meta["from_email"], "snippet": meta["snippet"],
+                                  "received_at": meta["received"], "action_taken": "trashed",
+                                  "reason": "Blocked sender."},
+                    )
+                    processed_count += 1
+                else:
+                    to_classify.append((m, meta))
+
+            if not to_classify:
+                _save_job(processed=processed_count)
+                continue
+
+            # Single AI call for the whole batch
+            try:
+                ai_results = _classify_batch([meta for _, meta in to_classify])
+            except Exception as exc:
+                ai_results = [{"category": "other", "importance": 2, "is_urgent": False,
+                               "action": "keep", "is_event": False, "event_when": "",
+                               "reason": f"AI error: {exc}"}
+                              for _ in to_classify]
+
+            for (m, meta), data in zip(to_classify, ai_results):
+                sender_domain = meta["from_email"].split("@")[-1] if "@" in meta["from_email"] else ""
+                raw_slug = data.get("category", "other")
+                cat = None
+                custom_cat_obj = None
+
+                if raw_slug.startswith("custom_"):
+                    inner = raw_slug[7:]
+                    custom_cat_obj = custom_by_slug.get(inner)
+                    cat = other_cat
+                elif raw_slug == "other":
+                    cat = other_cat
+                else:
+                    cat = cat_by_slug.get(raw_slug) or other_cat
+
+                ai_importance = max(1, min(5, int(data.get("importance", 3))))
+                is_urgent     = bool(data.get("is_urgent", False))
+                ai_action     = data.get("action", "keep")
+
+                user_tier = (profile.tier_for(cat) if (profile and cat)
+                             else (cat.default_tier if cat else "normal"))
+
+                if user_tier == "critical":
+                    final_action = "keep"; importance = max(ai_importance, 5)
+                elif user_tier == "important":
+                    final_action = "keep"; importance = max(ai_importance, 4)
+                elif user_tier == "normal":
+                    final_action = ai_action if ai_action != "trash" else "keep"
+                    importance = ai_importance
+                elif user_tier == "low":
+                    final_action = "archive" if ai_action == "keep" else ai_action
+                    importance = min(ai_importance, 3)
+                else:  # ignore
+                    final_action = "trash"; importance = 1
+
+                # Apply Gmail labels using the cache
+                label_ids = []
+                try:
+                    if custom_cat_obj:
+                        lid = _ensure_label_cached(custom_cat_obj.name)
+                    elif cat and cat.slug != "other":
+                        lid = _ensure_label_cached(cat.short_label)
+                    else:
+                        lid = _ensure_label_cached("Other")
+                    if lid: label_ids.append(lid)
+                    if org_domain and sender_domain == org_domain and myorg_cat:
+                        lid2 = _ensure_label_cached(myorg_cat.short_label)
+                        if lid2: label_ids.append(lid2)
+                    if is_urgent and urgent_cat:
+                        lid3 = _ensure_label_cached(urgent_cat.short_label)
+                        if lid3: label_ids.append(lid3)
+                    if user_tier == "critical":
+                        lid4 = _ensure_label_cached("⭐ Critical")
+                        if lid4: label_ids.append(lid4)
+                    elif user_tier == "important":
+                        lid5 = _ensure_label_cached("⭐ Important")
+                        if lid5: label_ids.append(lid5)
+                    apply_labels(svc, m["id"], label_ids)
+                except Exception:
+                    pass
+
+                # Execute action
+                try:
+                    if final_action == "trash":
+                        trash_message(svc, m["id"])
+                    elif final_action == "archive":
+                        svc.users().messages().modify(
+                            userId="me", id=m["id"],
+                            body={"removeLabelIds": ["INBOX"]}
+                        ).execute()
+                except Exception:
+                    pass
+
+                ClassifiedEmail.objects.update_or_create(
+                    user=user, gmail_id=m["id"],
+                    defaults={
+                        "thread_id": meta["thread_id"],
+                        "subject": meta["subject"][:500], "sender": meta["from"][:300],
+                        "sender_email": meta["from_email"], "snippet": meta["snippet"],
+                        "received_at": meta["received"],
+                        "category": cat, "custom_category": custom_cat_obj,
+                        "importance": importance, "is_urgent": is_urgent,
+                        "reason": data.get("reason", ""),
+                        "action_taken": ("trashed" if final_action == "trash"
+                                         else "archived" if final_action == "archive"
+                                         else "labeled"),
+                        "is_event": bool(data.get("is_event", False)),
+                        "event_when": (data.get("event_when") or "")[:120],
+                        "unsubscribe_url": (meta.get("unsubscribe_url") or "")[:1000],
+                    },
+                )
+                processed_count += 1
+
+            # Update progress once per batch (not per email)
             _save_job(processed=processed_count)
 
         _save_job(status="done")
