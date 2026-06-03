@@ -114,10 +114,17 @@
   {% if active_job and active_job.status != "done" and active_job.status != "error" %}
   <div id="job-card" class="job-card mb-3"
        data-job-id="{{ active_job.pk }}"
-       data-status-url="{% url 'job_status' active_job.pk %}">
-    <div class="job-card-title">
-      <span id="job-dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#6366f1;animation:scopepulse 1s infinite"></span>
-      <span id="job-title-text">AI Classification in progress…</span>
+       data-status-url="{% url 'job_status' active_job.pk %}"
+       data-cancel-url="{% url 'cancel_job' active_job.pk %}">
+    <div class="job-card-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span>
+        <span id="job-dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#6366f1;animation:scopepulse 1s infinite"></span>
+        <span id="job-title-text">AI Classification in progress…</span>
+      </span>
+      <button id="stop-btn" onclick="stopJob()"
+              style="background:#ef4444;color:#fff;border:none;border-radius:8px;padding:5px 14px;font-size:.78rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px">
+        <i class="bi bi-stop-circle"></i> Stop
+      </button>
     </div>
     <div class="job-card-sub" id="job-sub">
       {% if active_job.total > 0 %}Processing {{ active_job.processed }} of {{ active_job.total }} emails{% else %}Fetching emails from Gmail…{% endif %}
@@ -508,6 +515,34 @@ function onScopeClick(form) {
     if(grid) grid.style.display = '';
   }
 
+  const cancelUrl = card.dataset.cancelUrl;
+
+  window.stopJob = function(){
+    const btn = document.getElementById('stop-btn');
+    btn.disabled = true;
+    btn.textContent = 'Stopping…';
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]') &&
+                      document.querySelector('[name=csrfmiddlewaretoken]').value ||
+                      '{{ csrf_token }}';
+    fetch(cancelUrl, {method:'POST', headers:{'X-CSRFToken': csrfToken}})
+      .then(r=>r.json())
+      .then(()=> showCancelled())
+      .catch(()=> showCancelled());
+  };
+
+  function showCancelled(){
+    sub.textContent  = 'Stopped — emails classified so far have been saved.';
+    pct.textContent  = '';
+    card.style.background  = 'linear-gradient(135deg,#fafafa,#f1f5f9)';
+    card.style.borderColor = '#cbd5e1';
+    document.getElementById('job-dot').style.background  = '#94a3b8';
+    document.getElementById('job-dot').style.animation   = 'none';
+    document.getElementById('job-title-text').textContent = 'Classification stopped.';
+    const btn = document.getElementById('stop-btn');
+    if(btn) btn.style.display = 'none';
+    if(grid) grid.style.display = '';
+  }
+
   function poll(){
     // Client-side timeout watchdog
     if(Date.now() - lastProgressAt > CLIENT_TIMEOUT_MS){
@@ -528,6 +563,10 @@ function onScopeClick(form) {
         document.getElementById('job-title-text').textContent = 'Classification complete!';
         if(grid) grid.style.display = '';
         setTimeout(()=>{ window.location.href = window.location.pathname; }, 2000);
+        return;
+      }
+      if(d.status==='cancelled'){
+        showCancelled();
         return;
       }
       if(d.status==='error'){

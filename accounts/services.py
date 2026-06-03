@@ -1688,6 +1688,9 @@ EMAILS
         # ── Main loop: process in batches of BATCH_SIZE ───────────────────────
         idx = 0
         while idx < len(new_msgs):
+            # Check for user cancellation before each batch
+            if ClassificationJob.objects.filter(pk=job_id, status="cancelled").exists():
+                return
             batch_msgs = new_msgs[idx:idx + BATCH_SIZE]
             idx += BATCH_SIZE
 

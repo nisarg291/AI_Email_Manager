@@ -720,6 +720,21 @@ def job_status(request, job_id):
     })
 
 
+@login_required
+def cancel_job(request, job_id):
+    """Cancel a running or pending classification job."""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    job = ClassificationJob.objects.filter(user=request.user, pk=job_id).first()
+    if not job:
+        return JsonResponse({"error": "not found"}, status=404)
+    if job.status in ("running", "pending"):
+        job.status = "cancelled"
+        job.error_msg = "Cancelled by user."
+        job.save(update_fields=["status", "error_msg", "updated_at"])
+    return JsonResponse({"ok": True, "status": job.status})
+
+
 def _ensure_profile(request):
     profile, _ = UserProfile.objects.get_or_create(
         user=request.user, defaults={"full_name": request.user.get_full_name()},

@@ -35,7 +35,8 @@ urlpatterns = [
     path("onboarding/step2/", views.onboarding_step2, name="onboarding_step2"),
     path("onboarding/step3/", views.onboarding_step3, name="onboarding_step3"),
     path("categories/",       views.categories_view,  name="categories"),
-    path("jobs/<int:job_id>/status/", views.job_status, name="job_status"),
+    path("jobs/<int:job_id>/status/", views.job_status,  name="job_status"),
+    path("jobs/<int:job_id>/cancel/", views.cancel_job,  name="cancel_job"),
 
     path("labels/",           views.labels_view,      name="labels"),
     path("manage-labels/",    views.manage_labels_view, name="manage_labels"),
