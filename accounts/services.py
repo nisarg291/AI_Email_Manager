@@ -633,10 +633,10 @@ def gmail_service(user):
 
 
 SCOPE_QUERIES = {
-    "latest200" : ("in:inbox",               200,  "Latest 200 emails"),
-    "week1"     : ("in:inbox newer_than:7d",  9999, "Last 1 week"),
-    "week2"     : ("in:inbox newer_than:14d", 9999, "Last 2 weeks"),
-    "month1"    : ("in:inbox newer_than:30d", 9999, "Last 1 month"),
+    "latest200" : ("in:inbox",               200,  "Last 200 emails"),
+    "week1"     : ("in:inbox newer_than:7d",  200,  "Last 1 week"),
+    "week2"     : ("in:inbox newer_than:14d", 400,  "Last 2 weeks"),
+    "month1"    : ("in:inbox newer_than:30d", 600,  "Last 1 month"),
     "live"      : ("in:inbox newer_than:1d",  50,   "New today"),
 }
 
