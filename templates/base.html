@@ -241,6 +241,9 @@ hr.dropdown-divider{margin:5px 0;border-color:var(--border)}
       <a class="side-link {% if request.resolver_match.url_name == 'sent' %}active{% endif %}" href="{% url 'sent' %}">
         <i class="bi bi-send-fill"></i> Sent
       </a>
+      <a class="side-link {% if request.resolver_match.url_name == 'action_needed' %}active{% endif %}" href="{% url 'action_needed' %}">
+        <i class="bi bi-lightning-charge-fill"></i> Urgent
+      </a>
       <a class="side-link {% if request.resolver_match.url_name == 'urgent' %}active{% endif %}" href="{% url 'urgent' %}">
         <i class="bi bi-fire"></i> Critical
       </a>

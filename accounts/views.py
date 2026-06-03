@@ -467,6 +467,26 @@ def toggle_live(request):
 
 
 @login_required
+def action_needed_view(request):
+    from django.utils import timezone
+    from datetime import timedelta
+    from django.db.models import Q
+
+    SKIP_GROUPS = {"Security", "Notifications", "System", "Spam", "Marketing", "Delivery"}
+    cutoff = timezone.now() - timedelta(hours=48)
+
+    qs = (
+        ClassifiedEmail.objects
+        .filter(user=request.user, received_at__gte=cutoff)
+        .filter(Q(is_urgent=True) | Q(importance__gte=4))
+        .exclude(category__group__in=SKIP_GROUPS)
+        .select_related("category", "custom_category")
+        .order_by("-importance", "-received_at")[:60]
+    )
+    return render(request, "action_needed.html", {"emails": qs, "cutoff": cutoff})
+
+
+@login_required
 def urgent_view(request):
     from .models import UserCategoryPreference
     critical_cat_ids = UserCategoryPreference.objects.filter(

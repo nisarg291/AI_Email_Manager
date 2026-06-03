@@ -13,6 +13,7 @@ urlpatterns = [
     path("emails/",           views.manage_emails,   name="manage_emails"),
     path("emails/live/toggle/", views.toggle_live,   name="toggle_live"),
     path("urgent/",           views.urgent_view,     name="urgent"),
+    path("action-needed/",    views.action_needed_view, name="action_needed"),
     path("important/",        views.important_view,  name="important"),
 
     path("subscriptions/",    views.subscriptions_view,           name="subscriptions"),
