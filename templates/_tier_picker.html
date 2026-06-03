@@ -1,7 +1,7 @@
 {# Reusable category tier picker. Expects `cat_groups` in context. #}
 
 <div class="d-flex justify-content-center gap-3 mb-4 flex-wrap small text-muted">
-  <span><span class="badge-tier tier-critical">🔥 Urgent</span> always notify</span>
+  <span><span class="badge-tier tier-critical">🔥 Critical</span> always notify</span>
   <span><span class="badge-tier tier-important">⭐ Important</span> stay in inbox</span>
   <span><span class="badge-tier tier-normal">📌 Normal</span> just label</span>
   <span><span class="badge-tier tier-low">📥 Low</span> file away</span>
@@ -27,7 +27,7 @@
         <label class="tier-pill {% if item.tier == 'critical' %}selected crit{% endif %}">
           <input type="radio" name="tier_{{ item.obj.id }}" value="critical"
                  {% if item.tier == 'critical' %}checked{% endif %}>
-          🔥 Urgent
+          🔥 Critical
         </label>
 
         <label class="tier-pill {% if item.tier == 'important' %}selected imp{% endif %}">
