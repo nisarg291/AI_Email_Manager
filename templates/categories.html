@@ -51,73 +51,76 @@
 </div>
 
 <!-- ── ACTIVE CATEGORIES ──────────────────────────── -->
+<!-- Tier form: only holds csrf + action + submit button. Radio inputs link via form="tier-form" -->
 <form method="post" id="tier-form">
   {% csrf_token %}
   <input type="hidden" name="action" value="save_tiers">
-  <div class="card-modern mb-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h6 class="mb-0 fw-semibold"><i class="bi bi-sliders text-primary me-2"></i>Active AI Categories</h6>
-      <button type="submit" class="btn btn-primary btn-sm px-4">Save tier changes</button>
-    </div>
-
-    <!-- tier legend -->
-    <div class="d-flex gap-3 mb-3 flex-wrap" style="font-size:12px;color:#64748b">
-      <span><span class="badge-tier tier-critical">🔥 Critical</span> always notify</span>
-      <span><span class="badge-tier tier-important">⭐ Important</span> keep in inbox</span>
-      <span><span class="badge-tier tier-normal">📌 Normal</span> just label</span>
-      <span><span class="badge-tier tier-low">📥 Low</span> archive</span>
-      <span><span class="badge-tier tier-ignore">🗑️ Ignore</span> auto-trash</span>
-    </div>
-
-    {% if active_groups %}
-      {% for group, prefs in active_groups.items %}
-        <div class="cat-group-title">{{ group }}</div>
-        {% for pref in prefs %}
-          <div class="cat-card" id="cat-card-{{ pref.pk }}">
-            <div class="cat-card-head d-flex justify-content-between align-items-start">
-              <div>
-                <div class="cat-name">
-                  {{ pref.category.name }}
-                  <span class="badge-cat ms-1">{{ pref.category.short_label }}</span>
-                </div>
-                <div class="cat-desc">{{ pref.category.description }}</div>
-              </div>
-              <form method="post" class="ms-3 flex-shrink-0"
-                    onsubmit="return confirm('Remove {{ pref.category.name }} from your labels?')">
-                {% csrf_token %}
-                <input type="hidden" name="action"  value="remove_cat">
-                <input type="hidden" name="pref_id" value="{{ pref.pk }}">
-                <button type="submit" class="btn btn-sm" style="color:#94a3b8;padding:3px 8px" title="Remove">
-                  <i class="bi bi-x-lg"></i>
-                </button>
-              </form>
-            </div>
-
-            <div class="tier-pills">
-              {% for val, label in tier_choices %}
-                <label class="tier-pill {% if pref.tier == val %}selected {% if val == 'critical' %}crit{% elif val == 'important' %}imp{% elif val == 'normal' %}norm{% elif val == 'low' %}low{% else %}ign{% endif %}{% endif %}">
-                  <input type="radio" name="tier_{{ pref.category_id }}" value="{{ val }}"
-                         {% if pref.tier == val %}checked{% endif %}>
-                  {% if val == 'critical' %}🔥 Critical
-                  {% elif val == 'important' %}⭐ Important
-                  {% elif val == 'normal' %}📌 Normal
-                  {% elif val == 'low' %}📥 Low
-                  {% else %}🗑️ Ignore{% endif %}
-                </label>
-              {% endfor %}
-            </div>
-          </div>
-        {% endfor %}
-      {% endfor %}
-    {% else %}
-      <div class="text-center py-5 text-muted">
-        <i class="bi bi-inbox" style="font-size:32px;opacity:.3"></i>
-        <p class="mt-3 mb-0">No active categories yet.<br>
-          Complete onboarding to get AI-selected labels, or browse the pool above.</p>
-      </div>
-    {% endif %}
-  </div>
 </form>
+
+<div class="card-modern mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h6 class="mb-0 fw-semibold"><i class="bi bi-sliders text-primary me-2"></i>Active AI Categories</h6>
+    <button type="submit" form="tier-form" class="btn btn-primary btn-sm px-4">Save tier changes</button>
+  </div>
+
+  <!-- tier legend -->
+  <div class="d-flex gap-3 mb-3 flex-wrap" style="font-size:12px;color:#64748b">
+    <span><span class="badge-tier tier-critical">🔥 Critical</span> always notify</span>
+    <span><span class="badge-tier tier-important">⭐ Important</span> keep in inbox</span>
+    <span><span class="badge-tier tier-normal">📌 Normal</span> just label</span>
+    <span><span class="badge-tier tier-low">📥 Low</span> archive</span>
+    <span><span class="badge-tier tier-ignore">🗑️ Ignore</span> auto-trash</span>
+  </div>
+
+  {% if active_groups %}
+    {% for group, prefs in active_groups.items %}
+      <div class="cat-group-title">{{ group }}</div>
+      {% for pref in prefs %}
+        <div class="cat-card" id="cat-card-{{ pref.pk }}">
+          <div class="cat-card-head d-flex justify-content-between align-items-start">
+            <div>
+              <div class="cat-name">
+                {{ pref.category.name }}
+                <span class="badge-cat ms-1">{{ pref.category.short_label }}</span>
+              </div>
+              <div class="cat-desc">{{ pref.category.description }}</div>
+            </div>
+            <form method="post" class="ms-3 flex-shrink-0"
+                  onsubmit="return confirm('Remove {{ pref.category.name }} from your labels?')">
+              {% csrf_token %}
+              <input type="hidden" name="action"  value="remove_cat">
+              <input type="hidden" name="pref_id" value="{{ pref.pk }}">
+              <button type="submit" class="btn btn-sm" style="color:#94a3b8;padding:3px 8px" title="Remove">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </form>
+          </div>
+
+          <div class="tier-pills">
+            {% for val, label in tier_choices %}
+              <label class="tier-pill {% if pref.tier == val %}selected {% if val == 'critical' %}crit{% elif val == 'important' %}imp{% elif val == 'normal' %}norm{% elif val == 'low' %}low{% else %}ign{% endif %}{% endif %}">
+                <input type="radio" name="tier_{{ pref.category_id }}" value="{{ val }}"
+                       form="tier-form"
+                       {% if pref.tier == val %}checked{% endif %}>
+                {% if val == 'critical' %}🔥 Critical
+                {% elif val == 'important' %}⭐ Important
+                {% elif val == 'normal' %}📌 Normal
+                {% elif val == 'low' %}📥 Low
+                {% else %}🗑️ Ignore{% endif %}
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    {% endfor %}
+  {% else %}
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-inbox" style="font-size:32px;opacity:.3"></i>
+      <p class="mt-3 mb-0">No active categories yet.<br>
+        Complete onboarding to get AI-selected labels, or browse the pool above.</p>
+    </div>
+  {% endif %}
+</div>
 
 <!-- ── CUSTOM LABELS ───────────────────────────────── -->
 <div class="card-modern">
