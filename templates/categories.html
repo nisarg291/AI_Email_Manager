@@ -65,7 +65,7 @@
 
   <!-- tier legend -->
   <div class="d-flex gap-3 mb-3 flex-wrap" style="font-size:12px;color:#64748b">
-    <span><span class="badge-tier tier-critical">🔥 Critical</span> always notify</span>
+    <span><span class="badge-tier tier-critical">🔥 Urgent</span> always notify</span>
     <span><span class="badge-tier tier-important">⭐ Important</span> keep in inbox</span>
     <span><span class="badge-tier tier-normal">📌 Normal</span> just label</span>
     <span><span class="badge-tier tier-low">📥 Low</span> archive</span>
@@ -102,7 +102,7 @@
                 <input type="radio" name="tier_{{ pref.category_id }}" value="{{ val }}"
                        form="tier-form"
                        {% if pref.tier == val %}checked{% endif %}>
-                {% if val == 'critical' %}🔥 Critical
+                {% if val == 'critical' %}🔥 Urgent
                 {% elif val == 'important' %}⭐ Important
                 {% elif val == 'normal' %}📌 Normal
                 {% elif val == 'low' %}📥 Low

@@ -1367,7 +1367,7 @@ Respond ONLY with valid JSON:
 
                 # Critical tier gets an extra star label
                 if user_tier == "critical":
-                    label_ids.append(ensure_label(svc, "⭐ Critical"))
+                    label_ids.append(ensure_label(svc, "⭐ Urgent"))
 
             apply_labels(svc, m["id"], label_ids)
 
@@ -1788,7 +1788,7 @@ EMAILS
                         lid3 = _ensure_label_cached(urgent_cat.short_label)
                         if lid3: label_ids.append(lid3)
                     if user_tier == "critical":
-                        lid4 = _ensure_label_cached("⭐ Critical")
+                        lid4 = _ensure_label_cached("⭐ Urgent")
                         if lid4: label_ids.append(lid4)
                     elif user_tier == "important":
                         lid5 = _ensure_label_cached("⭐ Important")
@@ -1851,7 +1851,7 @@ def ensure_user_labels(user) -> None:
             ensure_label(svc, pref.category.short_label)
         for cc in user.custom_categories.all():
             ensure_label(svc, cc.name)
-        for name in ("Other", "⭐ Critical", "⭐ Important"):
+        for name in ("Other", "⭐ Urgent", "⭐ Important"):
             ensure_label(svc, name)
     except Exception as exc:
         print(f"ensure_user_labels: {exc}")

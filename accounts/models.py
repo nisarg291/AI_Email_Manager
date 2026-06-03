@@ -124,7 +124,7 @@ class GoogleAccount(models.Model):
 
 
 TIER_CHOICES = [
-    ("critical",  "🔥 Critical"),
+    ("critical",  "🔥 Urgent"),
     ("important", "⭐ Important"),
     ("normal",    "📌 Normal"),
     ("low",       "📥 Low"),

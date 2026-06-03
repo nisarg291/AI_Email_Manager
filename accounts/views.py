@@ -844,7 +844,7 @@ def onboarding_step3(request):
 
     from .models import EmailCategory as _EC
     tier_options = [
-        ("critical", "🔥", "crit", "Critical — always in inbox"),
+        ("critical", "🔥", "crit", "Urgent — always in inbox"),
         ("important", "⭐", "imp",  "Important — stays in inbox"),
         ("normal",    "📌", "norm", "Normal — label & keep"),
         ("low",       "📥", "low",  "Low — file away"),
@@ -998,7 +998,7 @@ def categories_view(request):
 
     custom_cats = request.user.custom_categories.order_by("name")
     tier_choices = [
-        ("critical",  "Critical"),
+        ("critical",  "Urgent"),
         ("important", "Important"),
         ("normal",    "Normal"),
         ("low",       "Low"),

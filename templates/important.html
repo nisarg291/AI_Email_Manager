@@ -56,7 +56,7 @@
           <div class="elist-meta">
             <span class="elist-time local-ts" data-ts="{{ e.received_at|date:'c' }}">{{ e.received_at|date:"M d, H:i" }}</span>
             {% if e.category %}<span class="badge-cat">{{ e.category.short_label }}</span>{% endif %}
-            {% if e.importance >= 5 %}<span class="badge-tier tier-critical">Critical</span>
+            {% if e.importance >= 5 %}<span class="badge-tier tier-critical">Urgent</span>
             {% else %}<span class="badge-tier tier-important">High</span>{% endif %}
           </div>
         </li>

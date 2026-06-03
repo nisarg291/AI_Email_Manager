@@ -255,7 +255,7 @@
       <span class="filter-label ms-2"><i class="bi bi-speedometer2 me-1"></i>Importance</span>
       <select name="importance" class="filter-select">
         <option value="">All importance</option>
-        <option value="5" {% if current.importance == "5" %}selected{% endif %}>⭐ Critical (5)</option>
+        <option value="5" {% if current.importance == "5" %}selected{% endif %}>⭐ Urgent (5)</option>
         <option value="4" {% if current.importance == "4" %}selected{% endif %}>🔼 High (4)</option>
         <option value="3" {% if current.importance == "3" %}selected{% endif %}>➖ Normal (3)</option>
         <option value="2" {% if current.importance == "2" %}selected{% endif %}>🔽 Low (2)</option>
@@ -340,7 +340,7 @@
           </td>
           <td>
             {% if e.is_urgent %}<span class="badge-tier tier-critical">🔥 Urgent</span>
-            {% elif e.importance >= 5 %}<span class="badge-tier tier-critical">Critical</span>
+            {% elif e.importance >= 5 %}<span class="badge-tier tier-critical">Urgent</span>
             {% elif e.importance == 4 %}<span class="badge-tier tier-important">High</span>
             {% elif e.importance == 3 %}<span class="badge-tier tier-normal">Normal</span>
             {% elif e.importance == 2 %}<span class="badge-tier tier-low">Low</span>

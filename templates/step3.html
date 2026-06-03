@@ -8,7 +8,7 @@
 </div>
 <form method="post" style="max-width:900px;margin:0 auto">{% csrf_token %}
   <div class="d-flex justify-content-center gap-3 mb-4 flex-wrap small text-muted">
-    <span><span class="badge-tier tier-critical">🔥 Critical</span> always notify</span>
+    <span><span class="badge-tier tier-critical">🔥 Urgent</span> always notify</span>
     <span><span class="badge-tier tier-important">⭐ Important</span> stay in inbox</span>
     <span><span class="badge-tier tier-normal">📌 Normal</span> just label</span>
     <span><span class="badge-tier tier-low">📥 Low</span> file away</span>
@@ -26,9 +26,9 @@
           </div>
         </div>
         <div class="tier-pills" data-cat="{{ item.obj.id }}">
-          {% for v, lbl, cls in "critical,🔥 Critical,crit important,⭐ Important,imp normal,📌 Normal,norm low,📥 Low,low ignore,🗑️ Ignore,ign"|cut:" "|slice:":0" %}{% endfor %}
+          {% for v, lbl, cls in "critical,🔥 Urgent,crit important,⭐ Important,imp normal,📌 Normal,norm low,📥 Low,low ignore,🗑️ Ignore,ign"|cut:" "|slice:":0" %}{% endfor %}
           <label class="tier-pill {% if item.tier == 'critical' %}selected crit{% endif %}">
-            <input type="radio" name="tier_{{ item.obj.id }}" value="critical" {% if item.tier == 'critical' %}checked{% endif %}>🔥 Critical
+            <input type="radio" name="tier_{{ item.obj.id }}" value="critical" {% if item.tier == 'critical' %}checked{% endif %}>🔥 Urgent
           </label>
           <label class="tier-pill {% if item.tier == 'important' %}selected imp{% endif %}">
             <input type="radio" name="tier_{{ item.obj.id }}" value="important" {% if item.tier == 'important' %}checked{% endif %}>⭐ Important
