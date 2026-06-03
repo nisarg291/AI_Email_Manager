@@ -49,8 +49,8 @@
 
 <div class="dash-header">
   <div>
-    <h2 class="mb-1 fw-bold">Welcome back{% if user.first_name %}, {{ user.first_name }}{% endif %} 👋</h2>
-    <p class="text-muted mb-0">Here's a snapshot of your AI-managed inbox.</p>
+    <h2 class="mb-1 fw-bold">Welcome{% if user.first_name %}, {{ user.first_name }}{% endif %}, to your AI-managed inbox 👋</h2>
+    <p class="text-muted mb-0">Your emails are automatically classified, prioritised, and organised by AI.</p>
   </div>
   <a href="{% url 'manage_emails' %}" class="btn btn-primary"><i class="bi bi-magic me-1"></i> Run AI now</a>
 </div>
