@@ -1,0 +1,14 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "Q-t4Z8Oc3cgY1_kwjW9of"
+uri = "file://public/images/email-icon.png"
+type = "image"
+title = "Glowing email icon"
+
+[[generated]]
+id = "YOK76NXy24cQYgYkoJDRB"
+uri = "file://public/images/neural-net.png"
+type = "image"
+title = "Abstract neural network"
