@@ -247,7 +247,7 @@ from google_auth_oauthlib.flow import Flow
 from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_requests
 
-from .models import GoogleAccount, UserProfile, ClassifiedEmail, EmailCategory, UserCustomCategory, ClassificationJob
+from .models import GoogleAccount, UserProfile, ClassifiedEmail, EmailCategory, UserCustomCategory, ClassificationJob, UserCategoryPreference
 from . import services
 
 if settings.DEBUG:
@@ -394,7 +394,10 @@ def dashboard(request):
     stats = {
         "total":     ClassifiedEmail.objects.filter(user=request.user).count(),
         "important": ClassifiedEmail.objects.filter(user=request.user, importance__gte=4).count(),
-        "urgent":    ClassifiedEmail.objects.filter(user=request.user, is_urgent=True).count(),
+        "urgent":    ClassifiedEmail.objects.filter(
+            user=request.user,
+            category__in=UserCategoryPreference.objects.filter(user=request.user, tier="critical").values_list("category_id", flat=True)
+        ).count(),
         "trashed":   ClassifiedEmail.objects.filter(user=request.user, action_taken="trashed").count(),
     }
     return render(request, "dashboard.html", {
@@ -465,7 +468,11 @@ def toggle_live(request):
 
 @login_required
 def urgent_view(request):
-    qs = (ClassifiedEmail.objects.filter(user=request.user, is_urgent=True)
+    from .models import UserCategoryPreference
+    critical_cat_ids = UserCategoryPreference.objects.filter(
+        user=request.user, tier="critical"
+    ).values_list("category_id", flat=True)
+    qs = (ClassifiedEmail.objects.filter(user=request.user, category__in=critical_cat_ids)
           .select_related("category").order_by("-received_at")[:100])
     return render(request, "urgent.html", {"emails": qs})
 
@@ -1002,7 +1009,10 @@ def dashboard(request):
     stats = {
         "total":     ClassifiedEmail.objects.filter(user=request.user).count(),
         "important": ClassifiedEmail.objects.filter(user=request.user, importance__gte=4).count(),
-        "urgent":    ClassifiedEmail.objects.filter(user=request.user, is_urgent=True).count(),
+        "urgent":    ClassifiedEmail.objects.filter(
+            user=request.user,
+            category__in=UserCategoryPreference.objects.filter(user=request.user, tier="critical").values_list("category_id", flat=True)
+        ).count(),
         "trashed":   ClassifiedEmail.objects.filter(user=request.user, action_taken="trashed").count(),
     }
     recent = (ClassifiedEmail.objects.filter(user=request.user)
