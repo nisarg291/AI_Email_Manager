@@ -12,3 +12,15 @@ id = "YOK76NXy24cQYgYkoJDRB"
 uri = "file://public/images/neural-net.png"
 type = "image"
 title = "Abstract neural network"
+
+[[generated]]
+id = "xwG-EnG_koP9W2QhYnPaM"
+uri = "file://public/images/classification.png"
+type = "image"
+title = "Tech UI abstract"
+
+[[generated]]
+id = "--K6EBbjjTK22DjXjnDI6"
+uri = "file://public/images/gmail_abstract.png"
+type = "image"
+title = "Gmail logo abstract"
