@@ -246,8 +246,8 @@ CELERY_TASK_TIME_LIMIT    = 60 * 30   # 30 min hard limit
 
 from celery.schedules import crontab
 CELERY_BEAT_SCHEDULE = {
-    "classify-new-emails-every-3-min": {
+    "classify-new-emails-every-1-min": {
         "task": "accounts.tasks.classify_new_for_all_live_users",
-        "schedule": 180.0,
+        "schedule": 60.0,
     },
 }

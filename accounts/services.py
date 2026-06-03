@@ -1491,16 +1491,16 @@ def is_live_running(user_id: int) -> bool:
 
 
 def start_live_thread(user_id: int) -> None:
-    """Create a repeating Django Q schedule for live mode (every 3 min)."""
+    """Create a repeating Django Q schedule for live mode (every 1 min)."""
     try:
         from django_q.models import Schedule
-        Schedule.objects.get_or_create(
+        Schedule.objects.update_or_create(
             name=f"live-{user_id}",
             defaults={
                 "func": "accounts.services.live_classify_task",
                 "args": str(user_id),
                 "schedule_type": Schedule.MINUTES,
-                "minutes": 3,
+                "minutes": 1,
                 "repeats": -1,
             },
         )

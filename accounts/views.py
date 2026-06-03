@@ -438,7 +438,7 @@ def toggle_live(request):
     profile.save(update_fields=["live_classification"])
     if profile.live_classification:
         services.start_live_thread(request.user.pk)
-        messages.success(request, "Live mode ENABLED — new emails will be classified every 3 minutes.")
+        messages.success(request, "Live mode ENABLED — new emails will be classified every minute.")
     else:
         services.stop_live_thread(request.user.pk)
         messages.success(request, "Live mode disabled.")
