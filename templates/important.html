@@ -28,6 +28,7 @@
             {% if e.reason %}<span class="reason-chip">{{ e.reason|truncatechars:80 }}</span>{% endif %}
           </div>
           <div class="elist-meta">
+            <button class="star-btn" data-mid="{{ e.gmail_id }}" data-starred="0" onclick="toggleStar(event,this)" title="Star this email"><i class="bi bi-star"></i></button>
             <span class="elist-time local-ts" data-ts="{{ e.received_at|date:'c' }}">{{ e.received_at|date:"M d, H:i" }}</span>
             {% if e.event_when %}<span class="event-badge"><i class="bi bi-calendar3 me-1"></i>{{ e.event_when }}</span>{% endif %}
             <span class="badge-tier tier-important">⚡ Event</span>
@@ -54,6 +55,7 @@
             {% if e.reason %}<span class="reason-chip">{{ e.reason|truncatechars:80 }}</span>{% endif %}
           </div>
           <div class="elist-meta">
+            <button class="star-btn" data-mid="{{ e.gmail_id }}" data-starred="0" onclick="toggleStar(event,this)" title="Star this email"><i class="bi bi-star"></i></button>
             <span class="elist-time local-ts" data-ts="{{ e.received_at|date:'c' }}">{{ e.received_at|date:"M d, H:i" }}</span>
             {% if e.category %}<span class="badge-cat">{{ e.category.short_label }}</span>{% endif %}
             {% if e.importance >= 5 %}<span class="badge-tier tier-critical">Critical</span>

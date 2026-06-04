@@ -313,6 +313,7 @@
           <th>Importance</th>
           <th>Status</th>
           <th>When</th>
+          <th style="width:40px"></th>
         </tr>
       </thead>
       <tbody>
@@ -352,9 +353,12 @@
             {% else %}<span class="text-success small"><i class="bi bi-check2"></i> Labeled</span>{% endif %}
           </td>
           <td class="text-muted small"><span class="local-ts" data-ts="{{ e.received_at|date:'c' }}">{{ e.received_at|date:"M d, H:i" }}</span></td>
+          <td onclick="event.stopPropagation()" style="text-align:center;padding:0 6px">
+            <button class="star-btn" data-mid="{{ e.gmail_id }}" data-starred="0" onclick="toggleStar(event,this)" title="Star this email"><i class="bi bi-star"></i></button>
+          </td>
         </tr>
       {% empty %}
-        <tr><td colspan="6" class="text-center text-muted py-5">
+        <tr><td colspan="7" class="text-center text-muted py-5">
           No emails yet. Click a scan button above to classify emails from your inbox.
         </td></tr>
       {% endfor %}

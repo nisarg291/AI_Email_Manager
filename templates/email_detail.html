@@ -182,6 +182,14 @@
         <i class="bi bi-box-arrow-up-right"></i> Unsubscribe
       </a>
     {% endif %}
+    <button class="star-btn{% if email.is_starred %} starred{% endif %}"
+            style="font-size:1.15rem;padding:8px 10px"
+            data-mid="{{ email.id }}"
+            data-starred="{% if email.is_starred %}1{% else %}0{% endif %}"
+            onclick="toggleStar(event,this)"
+            title="{% if email.is_starred %}Unstar{% else %}Star{% endif %} this email">
+      <i class="{% if email.is_starred %}bi bi-star-fill{% else %}bi bi-star{% endif %}"></i>
+    </button>
     <button type="button" class="btn-act btn-act-reply" id="reply-toggle" onclick="toggleReplyPanel()">
       <i class="bi bi-stars"></i> Reply with AI
     </button>

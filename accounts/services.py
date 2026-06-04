@@ -732,13 +732,29 @@ def get_message_full(user, msg_id):
     headers = {h["name"].lower(): h["value"] for h in msg["payload"].get("headers", [])}
     body, kind = _extract_body(msg["payload"])
     received = _parse_msg_date(headers, msg.get("internalDate"))
+    label_ids = msg.get("labelIds", [])
     return {
         "id": msg["id"], "thread_id": msg.get("threadId", ""),
         "subject": headers.get("subject", "(no subject)"),
         "from": headers.get("from", ""), "to": headers.get("to", ""),
         "date": received, "body": body, "body_kind": kind,
-        "snippet": msg.get("snippet", ""), "in_trash": "TRASH" in msg.get("labelIds", []),
+        "snippet": msg.get("snippet", ""),
+        "in_trash": "TRASH" in label_ids,
+        "is_starred": "STARRED" in label_ids,
     }
+
+
+# -------- Star / Unstar --------
+def star_message(svc, msg_id: str) -> None:
+    svc.users().messages().modify(
+        userId="me", id=msg_id, body={"addLabelIds": ["STARRED"]}
+    ).execute()
+
+
+def unstar_message(svc, msg_id: str) -> None:
+    svc.users().messages().modify(
+        userId="me", id=msg_id, body={"removeLabelIds": ["STARRED"]}
+    ).execute()
 
 
 # -------- Labels / actions --------

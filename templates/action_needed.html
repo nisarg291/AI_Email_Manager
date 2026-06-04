@@ -53,6 +53,7 @@
           {% endif %}
         </div>
         <div class="an-meta">
+          <button class="star-btn" data-mid="{{ e.gmail_id }}" data-starred="0" onclick="toggleStar(event,this)" title="Star this email"><i class="bi bi-star"></i></button>
           <span class="an-time local-ts" data-ts="{{ e.received_at|date:'c' }}">{{ e.received_at|date:"M d, H:i" }}</span>
           {% if e.importance >= 5 %}
             <span class="an-badge-imp badge-imp-5">🔥 Critical</span>

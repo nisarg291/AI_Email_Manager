@@ -615,6 +615,24 @@ def subscription_block(request, sender_email):
 
 
 @login_required
+def toggle_star(request, msg_id):
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    action = request.POST.get("action", "star")
+    try:
+        svc = services.gmail_service(request.user)
+        if action == "star":
+            services.star_message(svc, msg_id)
+        else:
+            services.unstar_message(svc, msg_id)
+        return JsonResponse({"ok": True, "starred": action == "star"})
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).exception("toggle_star failed for user %s msg %s", request.user.id, msg_id)
+        return JsonResponse({"error": "Failed to update star."}, status=500)
+
+
+@login_required
 def email_detail(request, msg_id):
     try:
         email = services.get_message_full(request.user, msg_id)

@@ -484,7 +484,35 @@ async function cmSend(){
 </script>
 <style>
 @keyframes sidebarSpin{to{transform:rotate(360deg)}}
+/* ── Star button ── */
+.star-btn{background:transparent;border:none;cursor:pointer;padding:4px 5px;border-radius:6px;color:#cbd5e1;line-height:1;transition:color .15s,transform .15s;flex-shrink:0}
+.star-btn:hover{color:#f59e0b;transform:scale(1.15)}
+.star-btn.starred{color:#f59e0b}
+.star-btn.starred i{font-size:inherit}
 </style>
+<script>
+window._starCSRF = '{{ csrf_token }}';
+window.toggleStar = async function(evt, btn) {
+  evt.stopPropagation();
+  const mid = btn.dataset.mid;
+  const isStarred = btn.dataset.starred === '1';
+  const action = isStarred ? 'unstar' : 'star';
+  btn.style.pointerEvents = 'none';
+  const fd = new FormData();
+  fd.append('action', action);
+  fd.append('csrfmiddlewaretoken', window._starCSRF);
+  try {
+    const r = await fetch('/accounts/email/' + mid + '/star/', {method:'POST', body:fd});
+    const d = await r.json();
+    if (d.ok) {
+      btn.dataset.starred = d.starred ? '1' : '0';
+      btn.querySelector('i').className = d.starred ? 'bi bi-star-fill' : 'bi bi-star';
+      btn.classList.toggle('starred', d.starred);
+    }
+  } catch(e) {}
+  btn.style.pointerEvents = '';
+};
+</script>
 <script>
 /* ── Local-time converter ──
    Replaces every data-ts="<ISO UTC string>" element with the
