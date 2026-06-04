@@ -511,7 +511,9 @@ def action_needed_view(request):
             emails = sorted(merged, key=lambda x: (-x["importance"], -(x["received_at"].timestamp() if x["received_at"] else 0)))[:60]
 
     except Exception as exc:
-        error = str(exc)
+        import logging
+        logging.getLogger(__name__).exception("action_needed_view failed for user %s", request.user.id)
+        error = "Could not fetch emails from Gmail. Please try again shortly."
 
     return render(request, "action_needed.html", {"emails": emails, "error": error})
 
