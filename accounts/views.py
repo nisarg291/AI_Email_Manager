@@ -468,22 +468,52 @@ def toggle_live(request):
 
 @login_required
 def action_needed_view(request):
-    from django.utils import timezone
-    from datetime import timedelta
     from django.db.models import Q
 
     SKIP_GROUPS = {"Security", "Notifications", "System", "Spam", "Marketing", "Delivery"}
-    cutoff = timezone.now() - timedelta(hours=48)
+    emails, error = [], None
 
-    qs = (
-        ClassifiedEmail.objects
-        .filter(user=request.user, received_at__gte=cutoff)
-        .filter(Q(is_urgent=True) | Q(importance__gte=4))
-        .exclude(category__group__in=SKIP_GROUPS)
-        .select_related("category", "custom_category")
-        .order_by("-importance", "-received_at")[:60]
-    )
-    return render(request, "action_needed.html", {"emails": qs, "cutoff": cutoff})
+    try:
+        # 1. Fetch last 48 hours directly from Gmail (always fresh)
+        raw = services.list_by_query(request.user, "newer_than:2d", max_results=150)
+
+        if raw:
+            # 2. Cross-reference with local DB to get urgency scores
+            ids = [m["id"] for m in raw]
+            db_map = {
+                e.gmail_id: e
+                for e in ClassifiedEmail.objects
+                    .filter(user=request.user, gmail_id__in=ids)
+                    .exclude(category__group__in=SKIP_GROUPS)
+                    .select_related("category", "custom_category")
+            }
+
+            # 3. Build merged result — only emails with urgency score
+            merged = []
+            for m in raw:
+                db = db_map.get(m["id"])
+                if db and (db.is_urgent or db.importance >= 4):
+                    merged.append({
+                        "gmail_id":       db.gmail_id,
+                        "subject":        m["subject"],
+                        "sender":         m["from"],
+                        "snippet":        m["snippet"],
+                        "received_at":    m["received"],
+                        "importance":     db.importance,
+                        "is_urgent":      db.is_urgent,
+                        "reason":         db.reason,
+                        "category":       db.category,
+                        "custom_category": db.custom_category,
+                        "event_when":     db.event_when,
+                    })
+
+            # 4. Sort: most important first, then newest
+            emails = sorted(merged, key=lambda x: (-x["importance"], -(x["received_at"].timestamp() if x["received_at"] else 0)))[:60]
+
+    except Exception as exc:
+        error = str(exc)
+
+    return render(request, "action_needed.html", {"emails": emails, "error": error})
 
 
 @login_required
