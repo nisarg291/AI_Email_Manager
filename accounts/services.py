@@ -1766,6 +1766,10 @@ def _run_job(user_id: int, job_id: int) -> None:  # noqa: C901
             return results[:n]
 
         # ── Main loop: process in batches of BATCH_SIZE ───────────────────────
+        # pending_gmail_ops collects (msg_id, label_ids, final_action) so that
+        # ALL Gmail API calls (apply_labels / trash / archive) are deferred to
+        # Phase 2 — AFTER the job is marked "done" and the UI has reloaded.
+        pending_gmail_ops = []   # [(msg_id, label_ids, final_action), ...]
         idx = 0
         while idx < len(new_msgs):
             # Check for user cancellation before each batch
@@ -1843,7 +1847,7 @@ def _run_job(user_id: int, job_id: int) -> None:  # noqa: C901
                 else:  # ignore
                     final_action = "trash"; importance = 1
 
-                # Apply Gmail labels using the cache
+                # ── Phase 1: compute label IDs (cache lookups only, no API) ──
                 label_ids = []
                 try:
                     if custom_cat_obj:
@@ -1865,22 +1869,10 @@ def _run_job(user_id: int, job_id: int) -> None:  # noqa: C901
                     elif user_tier == "important":
                         lid5 = _ensure_label_cached("⭐ Important")
                         if lid5: label_ids.append(lid5)
-                    apply_labels(svc, m["id"], label_ids)
                 except Exception:
                     pass
 
-                # Execute action
-                try:
-                    if final_action == "trash":
-                        trash_message(svc, m["id"])
-                    elif final_action == "archive":
-                        svc.users().messages().modify(
-                            userId="me", id=m["id"],
-                            body={"removeLabelIds": ["INBOX"]}
-                        ).execute()
-                except Exception:
-                    pass
-
+                # ── Phase 1: save to DB immediately (fast — local write) ───
                 ClassifiedEmail.objects.update_or_create(
                     user=user, gmail_id=m["id"],
                     defaults={
@@ -1901,10 +1893,36 @@ def _run_job(user_id: int, job_id: int) -> None:  # noqa: C901
                 )
                 processed_count += 1
 
+                # Queue Gmail API calls for Phase 2 (deferred after job done)
+                pending_gmail_ops.append((m["id"], label_ids, final_action))
+
             # Update progress once per batch (not per email)
             _save_job(processed=processed_count)
 
+        # ── Phase 1 complete: all emails classified and saved to DB ──────────
+        # Mark job done NOW so the UI progress bar hits 100% and the page
+        # auto-reloads.  The user sees classified emails immediately.
         _save_job(status="done")
+
+        # ── Phase 2: deferred Gmail labelling + trash/archive ────────────────
+        # These slow per-message Gmail API calls happen AFTER the job is marked
+        # done, so they never block the progress bar or the page auto-reload.
+        for _mid, _lids, _faction in pending_gmail_ops:
+            try:
+                if _lids:
+                    apply_labels(svc, _mid, _lids)
+            except Exception:
+                pass
+            try:
+                if _faction == "trash":
+                    trash_message(svc, _mid)
+                elif _faction == "archive":
+                    svc.users().messages().modify(
+                        userId="me", id=_mid,
+                        body={"removeLabelIds": ["INBOX"]}
+                    ).execute()
+            except Exception:
+                pass
 
     except Exception as exc:
         try:

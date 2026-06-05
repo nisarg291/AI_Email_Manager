@@ -556,29 +556,33 @@ window.toggleStar = async function(evt, btn) {
 </script>
 <script>
 /* ── Live auto-refresh polling ──────────────────────────────────────────
-   Polls /accounts/emails/poll/ every 30 s on pages that set
-   window.ENABLE_POLL = true.  When new emails are classified a slim
-   banner slides in at the top; clicking it (or waiting 8 s) reloads
-   the page so the user sees fresh results without a manual refresh.   */
+   Polls /accounts/emails/poll/ every 10 s on pages that set
+   window.ENABLE_POLL = true.
+
+   Two triggers for auto-reload:
+     1. Email count increases → new emails classified (live mode)
+     2. Job status transitions to "done" → classification job finished
+        (progress bar just hit 100% — reload immediately so user sees results)
+   ─────────────────────────────────────────────────────────────────────── */
 (function () {
   if (!window.ENABLE_POLL) return;
 
-  var POLL_MS   = 30000;   // 30 s between polls
-  var AUTO_MS   = 8000;    // auto-reload 8 s after banner appears
+  var POLL_MS   = 10000;   // 10 s between polls (fast enough to catch job done)
+  var AUTO_MS   = 5000;    // auto-reload 5 s after banner (or immediately on job done)
   var POLL_URL  = '/accounts/emails/poll/';
 
-  var baseCount = null;    // set on first successful poll
-  var banner    = null;
-  var autoTimer = null;
+  var baseCount    = null;   // email count baseline
+  var lastJobId    = null;   // last seen job id
+  var lastJobStatus = null;  // last seen job status
+  var banner       = null;
+  var autoTimer    = null;
 
-  function createBanner(newCount) {
-    if (banner) return;                         // already showing
+  function createBanner(msg, immediate) {
+    if (banner) return;
     banner = document.createElement('div');
     banner.id = 'live-poll-banner';
-    var added = newCount - baseCount;
     banner.innerHTML =
-      '<span><i class="bi bi-lightning-charge-fill" style="color:#f0ad4e"></i> ' +
-      added + ' new email' + (added === 1 ? '' : 's') + ' classified</span>' +
+      '<span><i class="bi bi-lightning-charge-fill" style="color:#f0ad4e"></i> ' + msg + '</span>' +
       '<button onclick="location.reload()" style="margin-left:12px;padding:3px 12px;' +
       'border:none;border-radius:4px;background:#fff;color:#1a3c6e;font-weight:600;cursor:pointer;">' +
       'Refresh now</button>' +
@@ -596,7 +600,8 @@ window.toggleStar = async function(evt, btn) {
     requestAnimationFrame(function () {
       requestAnimationFrame(function () { banner.style.transform = 'translateY(0)'; });
     });
-    autoTimer = setTimeout(function () { location.reload(); }, AUTO_MS);
+    var delay = immediate ? 1500 : AUTO_MS;
+    autoTimer = setTimeout(function () { location.reload(); }, delay);
   }
 
   window.dismissBanner = function () {
@@ -609,19 +614,44 @@ window.toggleStar = async function(evt, btn) {
     fetch(POLL_URL, {credentials: 'same-origin'})
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (baseCount === null) {
-          baseCount = d.count;           // initialise on first call
+        var isInit = (baseCount === null);
+
+        // ── Initialise baseline on first poll ──
+        if (isInit) {
+          baseCount    = d.count;
+          lastJobId    = d.job_id;
+          lastJobStatus = d.job_status;
           return;
         }
-        if (d.count > baseCount) {
-          createBanner(d.count);
-          baseCount = d.count;          // update so we don't re-trigger
+
+        // ── Trigger 1: job just finished (status → "done") ──────────────
+        // Catches both manual jobs (last 200 / week / month) and live jobs.
+        var jobJustDone = (
+          d.job_status === 'done' &&
+          (d.job_id !== lastJobId || lastJobStatus !== 'done')
+        );
+        if (jobJustDone) {
+          baseCount = d.count;          // sync so Trigger 2 doesn't double-fire
+          lastJobId = d.job_id;
+          lastJobStatus = d.job_status;
+          createBanner('Classification complete — loading your emails…', true);
+          return;
         }
+
+        // ── Trigger 2: new emails appeared (live mode count increase) ────
+        if (d.count > baseCount) {
+          var added = d.count - baseCount;
+          baseCount = d.count;
+          createBanner(added + ' new email' + (added === 1 ? '' : 's') + ' classified', false);
+        }
+
+        lastJobId    = d.job_id;
+        lastJobStatus = d.job_status;
       })
-      .catch(function () {});           // silent fail on network error
+      .catch(function () {});
   }
 
-  // Initial poll (sets baseline), then repeat every POLL_MS
+  // Initial poll then repeat every POLL_MS
   poll();
   setInterval(poll, POLL_MS);
 })();

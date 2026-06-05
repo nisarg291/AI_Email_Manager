@@ -1092,9 +1092,9 @@ def dashboard(request):
 @login_required
 def poll_emails(request):
     """Lightweight polling endpoint for live auto-refresh.
-    Returns current classified-email count + latest timestamp so the
-    frontend can detect when new emails have been classified and
-    reload automatically — no WebSocket needed."""
+    Returns email count + latest job id/status so the frontend can:
+      1. Detect new emails (count increase) → show banner + reload
+      2. Detect job completion (status→done) → auto-reload immediately"""
     count = ClassifiedEmail.objects.filter(user=request.user).count()
     latest = (ClassifiedEmail.objects
               .filter(user=request.user)
@@ -1102,10 +1102,18 @@ def poll_emails(request):
               .values_list("received_at", flat=True)
               .first())
     is_live = getattr(getattr(request.user, "profile", None), "live_classification", False)
+    # Latest job: id + status so JS can detect when a running job finishes
+    job = (ClassificationJob.objects
+           .filter(user=request.user)
+           .order_by("-updated_at")
+           .values("id", "status")
+           .first())
     return JsonResponse({
         "count": count,
         "latest": latest.isoformat() if latest else None,
         "is_live": bool(is_live),
+        "job_id": job["id"] if job else None,
+        "job_status": job["status"] if job else None,
     })
 
 
