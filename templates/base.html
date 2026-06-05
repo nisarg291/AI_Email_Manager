@@ -554,5 +554,78 @@ window.toggleStar = async function(evt, btn) {
   }
 })();
 </script>
+<script>
+/* ── Live auto-refresh polling ──────────────────────────────────────────
+   Polls /accounts/emails/poll/ every 30 s on pages that set
+   window.ENABLE_POLL = true.  When new emails are classified a slim
+   banner slides in at the top; clicking it (or waiting 8 s) reloads
+   the page so the user sees fresh results without a manual refresh.   */
+(function () {
+  if (!window.ENABLE_POLL) return;
+
+  var POLL_MS   = 30000;   // 30 s between polls
+  var AUTO_MS   = 8000;    // auto-reload 8 s after banner appears
+  var POLL_URL  = '/accounts/emails/poll/';
+
+  var baseCount = null;    // set on first successful poll
+  var banner    = null;
+  var autoTimer = null;
+
+  function createBanner(newCount) {
+    if (banner) return;                         // already showing
+    banner = document.createElement('div');
+    banner.id = 'live-poll-banner';
+    var added = newCount - baseCount;
+    banner.innerHTML =
+      '<span><i class="bi bi-lightning-charge-fill" style="color:#f0ad4e"></i> ' +
+      added + ' new email' + (added === 1 ? '' : 's') + ' classified</span>' +
+      '<button onclick="location.reload()" style="margin-left:12px;padding:3px 12px;' +
+      'border:none;border-radius:4px;background:#fff;color:#1a3c6e;font-weight:600;cursor:pointer;">' +
+      'Refresh now</button>' +
+      '<button onclick="dismissBanner()" style="margin-left:8px;background:transparent;border:none;' +
+      'color:rgba(255,255,255,0.7);font-size:18px;cursor:pointer;line-height:1;">&times;</button>';
+    Object.assign(banner.style, {
+      position: 'fixed', top: '0', left: '0', right: '0', zIndex: '9999',
+      background: 'linear-gradient(90deg,#1a3c6e,#2563a8)',
+      color: '#fff', padding: '10px 20px',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+      transition: 'transform .3s ease', transform: 'translateY(-100%)',
+    });
+    document.body.prepend(banner);
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { banner.style.transform = 'translateY(0)'; });
+    });
+    autoTimer = setTimeout(function () { location.reload(); }, AUTO_MS);
+  }
+
+  window.dismissBanner = function () {
+    if (autoTimer) clearTimeout(autoTimer);
+    if (banner) { banner.style.transform = 'translateY(-100%)'; }
+    setTimeout(function () { if (banner) banner.remove(); banner = null; }, 350);
+  };
+
+  function poll() {
+    fetch(POLL_URL, {credentials: 'same-origin'})
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (baseCount === null) {
+          baseCount = d.count;           // initialise on first call
+          return;
+        }
+        if (d.count > baseCount) {
+          createBanner(d.count);
+          baseCount = d.count;          // update so we don't re-trigger
+        }
+      })
+      .catch(function () {});           // silent fail on network error
+  }
+
+  // Initial poll (sets baseline), then repeat every POLL_MS
+  poll();
+  setInterval(poll, POLL_MS);
+})();
+</script>
+{% block extra_js %}{% endblock %}
 </body>
 </html>

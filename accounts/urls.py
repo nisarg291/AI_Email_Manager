@@ -50,4 +50,5 @@ urlpatterns = [
     path("sent/",              views.sent_view,             name="sent"),
     path("summary/",           views.summary_view,          name="email_summary"),
     path("summary/generate/",  views.generate_summary_view, name="generate_summary"),
+    path("emails/poll/",       views.poll_emails,           name="poll_emails"),
 ]

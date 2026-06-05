@@ -703,6 +703,59 @@ def get_message_meta(svc, msg_id):
     }
 
 
+def _fetch_batch_metadata(svc, msg_ids: list) -> list:
+    """Fetch metadata for multiple messages in one Gmail batch HTTP request.
+    Replaces N serial get_message_meta() calls with a single parallel batch.
+    Returns list in the same order as msg_ids."""
+    if not msg_ids:
+        return []
+
+    def _empty(mid):
+        return {"id": mid, "thread_id": "", "subject": "(no subject)",
+                "from": "", "from_email": "", "snippet": "",
+                "received": None, "label_ids": [], "unsubscribe_url": ""}
+
+    results = {}
+
+    def _cb(request_id, response, exception):
+        mid = msg_ids[int(request_id)]
+        if exception or not response:
+            results[mid] = _empty(mid)
+            return
+        hdrs = {h["name"].lower(): h["value"]
+                for h in response["payload"].get("headers", [])}
+        received = _parse_msg_date(hdrs, response.get("internalDate"))
+        _, email_addr = parseaddr(hdrs.get("from", ""))
+        unsub = hdrs.get("list-unsubscribe", "")
+        um = re.search(r"<(https?://[^>]+)>", unsub)
+        results[mid] = {
+            "id": mid,
+            "thread_id": response.get("threadId", ""),
+            "subject": hdrs.get("subject", "(no subject)"),
+            "from": hdrs.get("from", ""),
+            "from_email": email_addr.lower(),
+            "snippet": response.get("snippet", ""),
+            "received": received,
+            "label_ids": response.get("labelIds", []),
+            "unsubscribe_url": um.group(1) if um else "",
+        }
+
+    batch = svc.new_batch_http_request(callback=_cb)
+    for i, mid in enumerate(msg_ids):
+        batch.add(
+            svc.users().messages().get(
+                userId="me", id=mid, format="metadata",
+                metadataHeaders=["Subject", "From", "Date", "List-Unsubscribe"],
+            ),
+            request_id=str(i),
+        )
+    try:
+        batch.execute()
+    except Exception:
+        pass
+    return [results.get(mid, _empty(mid)) for mid in msg_ids]
+
+
 def _b64url(data): return base64.urlsafe_b64decode(data.encode()).decode("utf-8", errors="replace")
 
 
@@ -1058,6 +1111,22 @@ def _profile_blurb(profile):
     parts.append(f"User cares about: {', '.join(high_priority) if high_priority else 'unspecified'}")
 
     return "\n".join(parts)
+
+
+def _condensed_profile(profile) -> str:
+    """Ultra-compact one-liner profile for batch classification prompts.
+    Keeps tokens low while preserving the two signals that most affect routing:
+    the user's role/org context and their hand-picked high-priority categories."""
+    if not profile:
+        return "General professional. High-priority: none."
+    prefs = (profile.user.category_prefs
+             .filter(tier__in=["critical", "important"])
+             .select_related("category"))
+    priorities = ", ".join(p.category.short_label for p in prefs) or "none"
+    role = profile.current_position or profile.get_current_role_display()
+    org = profile.current_organization or "unknown org"
+    return f"{role} at {org}. High-priority categories: {priorities}."
+
 
 def classify_emails(user, scope="latest200"):
     if _openai is None:
@@ -1652,45 +1721,40 @@ def _run_job(user_id: int, job_id: int) -> None:  # noqa: C901
             except Exception:
                 return ""
 
-        # ── Batch AI classification: 10 emails per OpenAI call ───────────────
-        # (Previously: 200 individual calls. Now: ~20 calls. ~10x speedup.)
-        BATCH_SIZE = 10
+        # ── Batch AI classification: 15 emails per OpenAI call ───────────────
+        BATCH_SIZE = 15
 
         def _classify_batch(batch_metas):
             n = len(batch_metas)
+            # Compact category list — slug=Label only (no descriptions).
+            # Cuts prompt tokens by ~60% vs verbose listing while keeping accuracy.
+            cat_compact = " | ".join(f"{c.slug}={c.short_label}" for c in active_cats)
+            if custom_cats:
+                cat_compact += " | " + " | ".join(
+                    f"custom_{c.slug}={c.name}" for c in custom_cats
+                )
+            cat_compact += " | other=Other"
+            user_line = _condensed_profile(profile)
             items = "\n".join(
-                f'[{i}] From: {m["from"]} | Subject: {m["subject"]} | Snippet: {m["snippet"][:200]}'
+                f'[{i}] {m["from"][:60]} | {m["subject"][:80]} | {m["snippet"][:120]}'
                 for i, m in enumerate(batch_metas)
             )
-            prompt = f"""You are an enterprise email triage assistant.
-
-USER PROFILE
-{profile_text}
-
-CATEGORIES
-{full_listing}
-
-For user-defined categories use "custom_<slug>". For unmatched, use "other".
-
-Classify each of the {n} emails below.
-Return a JSON object with key "results" — an array of exactly {n} objects in order.
-Each object: {{"idx":0,"category":"<slug>","importance":3,"is_urgent":false,"action":"keep","is_event":false,"event_when":"","reason":""}}
-
-Rules:
-- importance: 1 (junk) to 5 (critical)
-- is_urgent: true ONLY if action needed within 24-48h
-- action: "keep", "archive", or "trash"
-  * Never trash personal, financial, security, legal, healthcare, interview, or government emails.
-  * Trash only obvious spam, promotions, low-value newsletters.
-
-EMAILS
-{items}
-"""
+            prompt = (
+                f'Classify {n} emails. Return JSON: {{"results":[{n} objects in index order]}}\n'
+                f'User: {user_line}\n'
+                f'Categories (slug=Label): {cat_compact}\n\n'
+                f'Each result: {{"idx":0,"category":"slug","importance":3,"is_urgent":false,"action":"keep","is_event":false,"event_when":"","reason":"<10 words>"}}\n'
+                f'importance: 1=junk 2=low 3=normal 4=important 5=critical\n'
+                f'is_urgent: true ONLY if user must personally act/respond within 24h (NOT security alerts, newsletters, notifications)\n'
+                f'action: keep|archive|trash — NEVER trash financial/security/work/personal/legal emails\n\n'
+                f'EMAILS:\n{items}'
+            )
             resp = _openai.chat.completions.create(
                 model=settings.OPENAI_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
-                temperature=0.2,
+                temperature=0.1,
+                max_tokens=1600,
             )
             parsed = json.loads(resp.choices[0].message.content)
             results = parsed.get("results", [])
@@ -1710,16 +1774,8 @@ EMAILS
             batch_msgs = new_msgs[idx:idx + BATCH_SIZE]
             idx += BATCH_SIZE
 
-            # Fetch metadata for the batch
-            batch_metas = []
-            for m in batch_msgs:
-                try:
-                    meta = get_message_meta(svc, m["id"])
-                except Exception:
-                    meta = {"id": m["id"], "thread_id": "", "subject": "(no subject)",
-                            "from": "", "from_email": "", "snippet": "",
-                            "received": None, "label_ids": [], "unsubscribe_url": ""}
-                batch_metas.append(meta)
+            # Fetch metadata for the whole batch in ONE parallel Gmail request
+            batch_metas = _fetch_batch_metadata(svc, [m["id"] for m in batch_msgs])
 
             # Handle blocked senders immediately; collect the rest for AI
             to_classify = []

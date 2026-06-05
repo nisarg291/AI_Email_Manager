@@ -1090,6 +1090,26 @@ def dashboard(request):
 
 
 @login_required
+def poll_emails(request):
+    """Lightweight polling endpoint for live auto-refresh.
+    Returns current classified-email count + latest timestamp so the
+    frontend can detect when new emails have been classified and
+    reload automatically — no WebSocket needed."""
+    count = ClassifiedEmail.objects.filter(user=request.user).count()
+    latest = (ClassifiedEmail.objects
+              .filter(user=request.user)
+              .order_by("-received_at")
+              .values_list("received_at", flat=True)
+              .first())
+    is_live = getattr(getattr(request.user, "profile", None), "live_classification", False)
+    return JsonResponse({
+        "count": count,
+        "latest": latest.isoformat() if latest else None,
+        "is_live": bool(is_live),
+    })
+
+
+@login_required
 def manage_emails(request):
     bail = _require_google_account(request)
     if bail: return bail
