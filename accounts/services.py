@@ -606,6 +606,10 @@ from django.conf import settings
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from openai import OpenAI
+try:
+    from groq import Groq as _GroqClient
+except ImportError:
+    _GroqClient = None
 
 from .models import GoogleAccount, EmailCategory, ClassifiedEmail, UserCustomCategory, ClassificationJob
 
@@ -1085,6 +1089,14 @@ def generate_ai_reply(original_from: str, original_subject: str,
 # -------- AI classification --------
 _openai = OpenAI(api_key=settings.OPENAI_API_KEY) if settings.OPENAI_API_KEY else None
 
+# Groq client — used for fast batch classification (5-8x faster than OpenAI).
+# OpenAI is kept for AI Summary, AI Reply, Compose, and scam deep-scan.
+_groq_client = (
+    _GroqClient(api_key=settings.GROQ_API_KEY)
+    if (_GroqClient and settings.GROQ_API_KEY)
+    else None
+)
+
 def _profile_blurb(profile):
     if not profile:
         return "No profile yet."
@@ -1126,6 +1138,97 @@ def _condensed_profile(profile) -> str:
     role = profile.current_position or profile.get_current_role_display()
     org = profile.current_organization or "unknown org"
     return f"{role} at {org}. High-priority categories: {priorities}."
+
+
+# ── OTP/security patterns ─────────────────────────────────────────────────
+_OTP_RE = re.compile(
+    r"\b(otp|one.?time.?pass|2fa|two.?factor|verification code|sign.?in code|"
+    r"login attempt|new sign.?in|unusual sign.?in|security code|auth(?:entication)? code|"
+    r"your code is|enter this code|login alert|new login|access code|"
+    r"sign.?in from|new device|unrecognized device)\b",
+    re.IGNORECASE,
+)
+# ── Password-reset patterns ───────────────────────────────────────────────
+_PWD_RE = re.compile(
+    r"\b(password reset|reset your password|forgot.{0,10}password|"
+    r"password change|change your password|reset.{0,5}link)\b",
+    re.IGNORECASE,
+)
+# ── Obvious scam patterns ─────────────────────────────────────────────────
+_SCAM_RE = re.compile(
+    r"\b(you (?:have )?won|lottery winner|unclaimed.{0,15}prize|"
+    r"inheritance.{0,10}fund|transfer.{0,10}million|nigerian prince|"
+    r"advance.{0,5}fee|beneficiary.{0,10}fund|million.{0,10}dollar.{0,10}transfer)\b",
+    re.IGNORECASE,
+)
+# ── Newsletter / digest keywords ──────────────────────────────────────────
+_NEWS_RE = re.compile(
+    r"\b(newsletter|weekly digest|monthly digest|roundup|issue #|vol\.\s*\d|"
+    r"unsubscribe|this week in|top stories|curated for you)\b",
+    re.IGNORECASE,
+)
+
+
+def _quick_classify(meta: dict, org_domain: str) -> dict | None:
+    """
+    Rule-based pre-classifier — handles obvious emails in <1 ms, no API call.
+    Returns a classification dict (same shape as AI output) or None when the
+    email is ambiguous and needs to go through the LLM.
+
+    Conservative on purpose: only fires for very high-confidence patterns.
+    Org-domain emails are never short-circuited (they may look like newsletters
+    but be important internal comms).
+    """
+    subject  = meta.get("subject", "")
+    snippet  = meta.get("snippet", "")
+    unsub    = meta.get("unsubscribe_url", "")
+    from_email = meta.get("from_email", "")
+    sender_domain = from_email.split("@")[-1] if "@" in from_email else ""
+
+    # Never short-circuit emails from the user's own org
+    if org_domain and sender_domain == org_domain:
+        return None
+
+    combined = f"{subject} {snippet}"
+
+    # ── Rule 1: OTP / 2FA / login-alert ──────────────────────────────────
+    if _OTP_RE.search(subject):
+        return {
+            "category": "login_alert", "importance": 3,
+            "is_urgent": False, "action": "keep",
+            "is_event": False, "event_when": "",
+            "reason": "Security/OTP email — rule matched.",
+        }
+
+    # ── Rule 2: Password reset ────────────────────────────────────────────
+    if _PWD_RE.search(subject):
+        return {
+            "category": "password_reset", "importance": 3,
+            "is_urgent": False, "action": "keep",
+            "is_event": False, "event_when": "",
+            "reason": "Password reset email — rule matched.",
+        }
+
+    # ── Rule 3: Obvious scam / phishing ──────────────────────────────────
+    if _SCAM_RE.search(combined):
+        return {
+            "category": "phishing", "importance": 1,
+            "is_urgent": False, "action": "trash",
+            "is_event": False, "event_when": "",
+            "reason": "Obvious scam/phishing pattern — rule matched.",
+        }
+
+    # ── Rule 4: Newsletter — List-Unsubscribe header + newsletter keyword ─
+    # Both conditions required to avoid false-positives on transactional mail.
+    if unsub and _NEWS_RE.search(combined):
+        return {
+            "category": "newsletter", "importance": 2,
+            "is_urgent": False, "action": "archive",
+            "is_event": False, "event_when": "",
+            "reason": "Newsletter with unsubscribe link — rule matched.",
+        }
+
+    return None  # ambiguous → send to LLM
 
 
 def classify_emails(user, scope="latest200"):
@@ -1749,8 +1852,13 @@ def _run_job(user_id: int, job_id: int) -> None:  # noqa: C901
                 f'action: keep|archive|trash — NEVER trash financial/security/work/personal/legal emails\n\n'
                 f'EMAILS:\n{items}'
             )
-            resp = _openai.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+            # Use Groq for classification if configured (5-8x faster + free tier).
+            # Gracefully falls back to OpenAI when GROQ_API_KEY is not set.
+            _cls_client = _groq_client or _openai
+            _cls_model  = (settings.GROQ_CLASSIFICATION_MODEL
+                           if _groq_client else settings.OPENAI_MODEL)
+            resp = _cls_client.chat.completions.create(
+                model=_cls_model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 temperature=0.1,
@@ -1781,8 +1889,11 @@ def _run_job(user_id: int, job_id: int) -> None:  # noqa: C901
             # Fetch metadata for the whole batch in ONE parallel Gmail request
             batch_metas = _fetch_batch_metadata(svc, [m["id"] for m in batch_msgs])
 
-            # Handle blocked senders immediately; collect the rest for AI
-            to_classify = []
+            # ── Step 1: blocked senders (immediate trash) ─────────────────────
+            # ── Step 2: rule-based pre-filter (no API call, ~1 ms) ────────────
+            # ── Step 3: Groq/OpenAI LLM for remaining ambiguous emails ────────
+            pre_classified_list = []   # [(m, meta, data), ...] — rule matched
+            to_classify = []           # [(m, meta), ...] — needs LLM
             for m, meta in zip(batch_msgs, batch_metas):
                 sender_domain = meta["from_email"].split("@")[-1] if "@" in meta["from_email"] else ""
                 if meta["from_email"] in blocked or sender_domain in blocked:
@@ -1797,22 +1908,35 @@ def _run_job(user_id: int, job_id: int) -> None:  # noqa: C901
                     )
                     processed_count += 1
                 else:
-                    to_classify.append((m, meta))
+                    quick = _quick_classify(meta, org_domain)
+                    if quick:
+                        pre_classified_list.append((m, meta, quick))
+                    else:
+                        to_classify.append((m, meta))
 
-            if not to_classify:
+            if not to_classify and not pre_classified_list:
                 _save_job(processed=processed_count)
                 continue
 
-            # Single AI call for the whole batch
-            try:
-                ai_results = _classify_batch([meta for _, meta in to_classify])
-            except Exception as exc:
-                ai_results = [{"category": "other", "importance": 2, "is_urgent": False,
-                               "action": "keep", "is_event": False, "event_when": "",
-                               "reason": f"AI error: {exc}"}
-                              for _ in to_classify]
+            # LLM call only for emails that passed the pre-filter
+            if to_classify:
+                try:
+                    ai_results = _classify_batch([meta for _, meta in to_classify])
+                except Exception as exc:
+                    ai_results = [{"category": "other", "importance": 2, "is_urgent": False,
+                                   "action": "keep", "is_event": False, "event_when": "",
+                                   "reason": f"AI error: {exc}"}
+                                  for _ in to_classify]
+            else:
+                ai_results = []
 
-            for (m, meta), data in zip(to_classify, ai_results):
+            # Merge rule-based + LLM results for uniform post-processing
+            all_to_process = (
+                [(m, meta, data) for (m, meta), data in zip(to_classify, ai_results)]
+                + pre_classified_list
+            )
+
+            for m, meta, data in all_to_process:
                 sender_domain = meta["from_email"].split("@")[-1] if "@" in meta["from_email"] else ""
                 raw_slug = data.get("category", "other")
                 cat = None

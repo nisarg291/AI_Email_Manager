@@ -222,6 +222,12 @@ GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL   = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+
+# Groq — used for fast email classification (5-8x faster than OpenAI).
+# OpenAI is kept for AI Summary, AI Reply, Compose, and scam deep-scan.
+# Get a free key at console.groq.com → set GROQ_API_KEY in Secrets.
+GROQ_API_KEY              = os.environ.get("GROQ_API_KEY", "")
+GROQ_CLASSIFICATION_MODEL = os.environ.get("GROQ_CLASSIFICATION_MODEL", "llama-3.1-8b-instant")
 _default_redirect = (
     f"https://{_replit_domain}/accounts/google/callback/"
     if _replit_domain
